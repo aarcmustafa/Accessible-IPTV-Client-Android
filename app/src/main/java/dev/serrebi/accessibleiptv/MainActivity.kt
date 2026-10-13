@@ -252,13 +252,14 @@ class MainActivity : AppCompatActivity() {
 		}
 	}
 
-	private fun importGuide() {
-		status.status(getString(R.string.importing_guide))
+	/** Background guide loads are silent; only a failure, or a refresh the user asked for, is spoken. */
+	private fun importGuide(manual: Boolean = false) {
+		if (manual) status.status(getString(R.string.importing_guide))
 		lifecycleScope.launch {
 			try {
-				val n = app.importGuide { count -> runOnUiThread { status.text = getString(R.string.importing_guide_count, count) } }
+				app.importGuide { }
 				channelAdapter.notifyDataSetChanged()
-				status.status(getString(R.string.guide_imported))
+				if (manual) status.status(getString(R.string.guide_imported))
 			} catch (e: Exception) {
 				status.status(getString(R.string.guide_failed, e.message ?: e.javaClass.simpleName))
 			}
@@ -268,7 +269,7 @@ class MainActivity : AppCompatActivity() {
 	private fun showMore(anchor: View) {
 		val items = listOf(
 			getString(R.string.refresh_playlists) to { load(force = true, all = true) },
-			getString(R.string.import_guide) to { importGuide() },
+			getString(R.string.import_guide) to { importGuide(manual = true) },
 			getString(R.string.account_info) to { showAccountInfo() },
 			getString(R.string.settings) to { startActivity(Intent(this, SettingsActivity::class.java)) },
 			getString(R.string.check_updates) to { checkUpdates(quiet = false) },

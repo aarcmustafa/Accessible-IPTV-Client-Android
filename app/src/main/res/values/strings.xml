@@ -40,7 +40,6 @@
 	<string name="refreshing">Refreshing…</string>
 	<string name="load_errors">Failed: %1$s</string>
 	<string name="importing_guide">Loading guide…</string>
-	<string name="importing_guide_count">Loading guide, %1$d</string>
 	<string name="guide_imported">Guide ready.</string>
 	<string name="guide_failed">Guide failed: %1$s</string>
 	<string name="refresh_playlists">Refresh playlists</string>
