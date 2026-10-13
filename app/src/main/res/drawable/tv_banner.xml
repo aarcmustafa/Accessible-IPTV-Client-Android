@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android TV home-screen banner (320x180 dp). The app name sits in the label, not the image. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="320dp"
+	android:height="180dp"
+	android:viewportWidth="320"
+	android:viewportHeight="180">
+	<path android:fillColor="#0B5394" android:pathData="M0,0h320v180h-320z" />
+	<path android:fillColor="#FFFFFF" android:pathData="M110,45h100a6,6 0 0 1 6,6v60a6,6 0 0 1 -6,6h-100a6,6 0 0 1 -6,-6v-60a6,6 0 0 1 6,-6z M112,53v56h96v-56z" />
+	<path android:fillColor="#FFB300" android:pathData="M150,64l26,17l-26,17z" />
+	<path android:fillColor="#FFFFFF" android:pathData="M140,128h40v6h-40z" />
+</vector>

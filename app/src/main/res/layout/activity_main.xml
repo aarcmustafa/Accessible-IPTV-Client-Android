@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:orientation="vertical"
+	android:padding="8dp">
+
+	<!-- Search first and centred: the first thing reached by swipe, Tab or D-pad. -->
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="@dimen/search_margin"
+		android:gravity="center_vertical"
+		android:orientation="horizontal">
+
+		<EditText
+			android:id="@+id/filter"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_weight="1"
+			android:gravity="center"
+			android:hint="@string/search"
+			android:imeOptions="actionSearch"
+			android:importantForAutofill="no"
+			android:inputType="text"
+			android:minHeight="48dp" />
+
+		<Button
+			android:id="@+id/btnVoice"
+			style="@style/BarButton"
+			android:layout_marginStart="6dp"
+			android:text="@string/voice_search" />
+	</LinearLayout>
+
+	<RadioGroup
+		android:id="@+id/sections"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:contentDescription="@string/section"
+		android:gravity="center_horizontal"
+		android:orientation="horizontal">
+
+		<RadioButton android:id="@+id/secLive" style="@style/SectionRadio" android:checked="true" android:text="@string/live_tv" />
+		<RadioButton android:id="@+id/secMovies" style="@style/SectionRadio" android:text="@string/movies" />
+		<RadioButton android:id="@+id/secSeries" style="@style/SectionRadio" android:text="@string/series" />
+	</RadioGroup>
+
+	<!-- Real buttons, not an overflow menu: reachable by swipe, D-pad and keyboard alike. -->
+	<HorizontalScrollView
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content">
+
+		<LinearLayout
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:orientation="horizontal">
+
+			<Button android:id="@+id/btnSources" style="@style/BarButton" android:text="@string/playlists_and_guides" />
+			<Button android:id="@+id/btnOnNow" style="@style/BarButton" android:text="@string/whats_on_now" />
+			<Button android:id="@+id/btnGuideSearch" style="@style/BarButton" android:text="@string/search_guide" />
+			<Button android:id="@+id/btnRecordings" style="@style/BarButton" android:text="@string/recordings" />
+			<Button android:id="@+id/btnMore" style="@style/BarButton" android:text="@string/more" />
+		</LinearLayout>
+	</HorizontalScrollView>
+
+	<TextView
+		android:id="@+id/status"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:accessibilityLiveRegion="polite"
+		android:paddingVertical="4dp" />
+
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="0dp"
+		android:layout_weight="1"
+		android:baselineAligned="false"
+		android:orientation="horizontal">
+
+		<LinearLayout
+			android:layout_width="0dp"
+			android:layout_height="match_parent"
+			android:layout_weight="1"
+			android:orientation="vertical">
+
+			<TextView
+				android:id="@+id/groupsHeading"
+				style="@style/Heading"
+				android:text="@string/groups" />
+
+			<androidx.recyclerview.widget.RecyclerView
+				android:id="@+id/groups"
+				android:layout_width="match_parent"
+				android:layout_height="match_parent"
+				android:contentDescription="@string/groups" />
+		</LinearLayout>
+
+		<LinearLayout
+			android:layout_width="0dp"
+			android:layout_height="match_parent"
+			android:layout_marginStart="8dp"
+			android:layout_weight="2"
+			android:orientation="vertical">
+
+			<TextView
+				android:id="@+id/channelsHeading"
+				style="@style/Heading"
+				android:text="@string/channels" />
+
+			<androidx.recyclerview.widget.RecyclerView
+				android:id="@+id/channels"
+				android:layout_width="match_parent"
+				android:layout_height="0dp"
+				android:layout_weight="1"
+				android:contentDescription="@string/channels" />
+
+			<TextView
+				android:id="@+id/details"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:maxLines="4"
+				android:paddingVertical="4dp" />
+		</LinearLayout>
+	</LinearLayout>
+</LinearLayout>

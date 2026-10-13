@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:background="@android:color/black"
+	android:orientation="vertical">
+
+	<!-- No auto-hiding overlay controls: the buttons below are always there and always focusable. -->
+	<androidx.media3.ui.PlayerView
+		android:id="@+id/video"
+		android:layout_width="match_parent"
+		android:layout_height="0dp"
+		android:layout_weight="1"
+		android:focusable="false"
+		android:importantForAccessibility="no"
+		app:use_controller="false" />
+
+	<TextView
+		android:id="@+id/nowPlaying"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:paddingHorizontal="12dp"
+		android:paddingTop="6dp"
+		android:textColor="@android:color/white" />
+
+	<TextView
+		android:id="@+id/playerStatus"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:accessibilityLiveRegion="polite"
+		android:paddingHorizontal="12dp"
+		android:textColor="@android:color/white" />
+
+	<LinearLayout
+		android:id="@+id/controls"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:gravity="center"
+		android:orientation="horizontal"
+		android:padding="6dp">
+
+		<Button android:id="@+id/btnPause" style="@style/BarButton" android:text="@string/pause" />
+		<Button android:id="@+id/btnAudio" style="@style/BarButton" android:text="@string/audio_track" />
+		<Button android:id="@+id/btnRecord" style="@style/BarButton" android:text="@string/record" />
+		<Button android:id="@+id/btnCast" style="@style/BarButton" android:text="@string/cast" />
+		<Button android:id="@+id/btnFull" style="@style/BarButton" android:text="@string/full_screen" />
+		<Button android:id="@+id/btnClose" style="@style/BarButton" android:text="@string/close" />
+	</LinearLayout>
+</LinearLayout>

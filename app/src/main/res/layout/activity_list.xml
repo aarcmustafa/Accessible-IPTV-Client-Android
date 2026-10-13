@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shared by the programme, source and recording screens: optional buttons, an optional
+     labelled filter, a status line, then the list. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:orientation="vertical"
+	android:padding="8dp">
+
+	<LinearLayout
+		android:id="@+id/buttons"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:orientation="horizontal"
+		android:visibility="gone" />
+
+	<EditText
+		android:id="@+id/filter"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:hint="@string/filter"
+		android:importantForAutofill="no"
+		android:inputType="text"
+		android:minHeight="48dp"
+		android:visibility="gone" />
+
+	<TextView
+		android:id="@+id/status"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:accessibilityLiveRegion="polite"
+		android:paddingVertical="4dp" />
+
+	<TextView
+		android:id="@+id/listHeading"
+		style="@style/Heading" />
+
+	<androidx.recyclerview.widget.RecyclerView
+		android:id="@+id/list"
+		android:layout_width="match_parent"
+		android:layout_height="0dp"
+		android:layout_weight="1" />
+</LinearLayout>

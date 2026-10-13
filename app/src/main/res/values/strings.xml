@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep on-screen and spoken text short: say it once, plainly. -->
+<resources>
+	<string name="app_name">Accessible IPTV</string>
+
+	<!-- Main screen -->
+	<string name="playlists_and_guides">Playlists</string>
+	<string name="whats_on_now">On now</string>
+	<string name="recordings">Recordings</string>
+	<string name="more">More</string>
+	<string name="groups">Groups</string>
+	<string name="channels">Channels</string>
+	<string name="search">Search</string>
+	<string name="voice_search">Voice</string>
+	<string name="voice_prompt">Say a name</string>
+	<string name="voice_unavailable">No voice search on this device.</string>
+	<string name="search_heading">%1$d results</string>
+	<string name="list_heading">%1$s, %2$d</string>
+	<string name="section">Section</string>
+	<string name="live_tv">Live TV</string>
+	<string name="movies">Movies</string>
+	<string name="series">Series</string>
+	<string name="all_in_section">All</string>
+	<string name="favorites">Favourites</string>
+	<string name="search_guide">Guide search</string>
+	<string name="no_matches">No results.</string>
+	<string name="download">Download</string>
+	<string name="downloading">Downloading %1$s</string>
+	<string name="stream_url_is">URL: %1$s</string>
+	<string name="filter">Filter</string>
+	<string name="selected">selected</string>
+	<string name="favorite">favourite</string>
+	<string name="favorite_name">★ %1$s</string>
+	<string name="until">%1$s, until %2$s</string>
+	<string name="now_programme">Now: %1$s</string>
+	<string name="next_programme">Next: %1$s</string>
+	<string name="no_guide_for">No guide for %1$s.</string>
+	<string name="no_guide">No guide yet.</string>
+	<string name="no_sources">No playlists. Add one under Playlists.</string>
+	<string name="loading">Loading…</string>
+	<string name="refreshing">Refreshing…</string>
+	<string name="load_errors">Failed: %1$s</string>
+	<string name="importing_guide">Loading guide…</string>
+	<string name="importing_guide_count">Loading guide, %1$d</string>
+	<string name="guide_imported">Guide ready.</string>
+	<string name="guide_failed">Guide failed: %1$s</string>
+	<string name="refresh_playlists">Refresh playlists</string>
+	<string name="import_guide">Refresh guide</string>
+	<string name="account_info">Account</string>
+	<string name="account_info_none">Only Xtream and Stalker logins have account info.</string>
+	<string name="account_info_failed">Server not reachable: %1$s</string>
+	<string name="settings">Settings</string>
+	<string name="help">Help</string>
+	<string name="check_updates">Check for updates</string>
+	<string name="checking_updates">Checking…</string>
+	<string name="up_to_date">Up to date.</string>
+	<string name="update_available">Version %1$s available</string>
+	<string name="install">Install</string>
+	<string name="later">Later</string>
+	<string name="downloading_update">Downloading update…</string>
+	<string name="installing_update">Confirm the install.</string>
+	<string name="allow_installs">Allow installs for this app, then try again.</string>
+	<string name="update_failed">Update failed: %1$s</string>
+
+	<!-- Item actions -->
+	<string name="play_external">Play in another app</string>
+	<string name="no_external_player">No other player installed.</string>
+	<string name="add_favorite">Add favourite</string>
+	<string name="remove_favorite">Remove favourite</string>
+	<string name="added_favorite">Added %1$s.</string>
+	<string name="removed_favorite">Removed %1$s.</string>
+	<string name="programme_details">Details</string>
+	<string name="channel_guide">Guide</string>
+	<string name="guide_and_catchup">Guide and catch-up</string>
+	<string name="record_now">Record</string>
+	<string name="recording_channel">Recording %1$s</string>
+
+	<!-- Player -->
+	<string name="player_title">%1$s</string>
+	<string name="catchup_title">%1$s, catch-up</string>
+	<string name="pause">Pause</string>
+	<string name="play">Play</string>
+	<string name="retry">Retry</string>
+	<string name="audio_track">Audio</string>
+	<string name="record">Record</string>
+	<string name="close">Close</string>
+	<string name="full_screen">Full screen</string>
+	<string name="video_full_screen">Video. Activate to show controls.</string>
+	<string name="connecting">Connecting…</string>
+	<string name="buffering">Buffering…</string>
+	<string name="playing">Playing</string>
+	<string name="stream_ended">Ended</string>
+	<string name="play_failed">Failed: %1$s</string>
+	<string name="no_audio_tracks">No audio tracks.</string>
+	<string name="audio_track_set">Audio: %1$s</string>
+	<string name="track_n">Track %1$d</string>
+	<string name="cannot_record_this">Live channels only.</string>
+	<string name="cast">Cast</string>
+	<string name="stop_casting">Stop casting</string>
+	<string name="casting_to">Casting to %1$s</string>
+	<string name="cast_stopped">Casting stopped</string>
+	<string name="cast_unavailable">Casting needs Google Play services.</string>
+	<string name="cast_local_file">Recordings can\'t be cast.</string>
+
+	<!-- Programmes -->
+	<string name="guide_for">Guide: %1$s</string>
+	<string name="on_now">on now</string>
+	<string name="ended">ended</string>
+	<string name="catchup_available">catch-up</string>
+	<string name="no_catchup">No catch-up for this.</string>
+	<string name="schedule_recording">Schedule recording</string>
+	<string name="recording_scheduled">Scheduled %1$s, %2$s</string>
+	<string name="exact_alarm_needed">Allow alarms so recordings start on time.</string>
+
+	<!-- Sources -->
+	<string name="add_xtream">Add Xtream</string>
+	<string name="add_m3u">Add M3U URL</string>
+	<string name="add_m3u_file">Add M3U file</string>
+	<string name="add_stalker">Add Stalker</string>
+	<string name="stalker_at">Stalker, %1$s</string>
+	<string name="m3u_file">M3U file</string>
+	<string name="field_portal">Portal address</string>
+	<string name="field_mac">MAC address</string>
+	<string name="mac_hint">00:1A:79:00:00:00</string>
+	<string name="mac_invalid">MAC must look like 00:1A:79:12:34:56.</string>
+	<string name="edit_source">Edit playlist</string>
+	<string name="xtream_at">Xtream, %1$s</string>
+	<string name="m3u_playlist">M3U</string>
+	<string name="edit">Edit</string>
+	<string name="delete">Delete</string>
+	<string name="save">Save</string>
+	<string name="field_name">Name</string>
+	<string name="field_url">Playlist URL</string>
+	<string name="field_server">Server</string>
+	<string name="field_username">Username</string>
+	<string name="field_password">Password</string>
+	<string name="field_epg">Guide URL (optional)</string>
+	<string name="field_required">Required.</string>
+	<string name="source_saved">Saved %1$s.</string>
+	<string name="source_deleted">Deleted %1$s.</string>
+	<string name="delete_source_q">Delete %1$s?</string>
+
+	<!-- Recordings -->
+	<string name="stop_all_recordings">Stop all</string>
+	<string name="stop_recording">Stop</string>
+	<string name="recordings_stopped">Stopped.</string>
+	<string name="recordings_heading">%1$d scheduled, %2$d saved</string>
+	<string name="scheduled_for">%1$s to %2$s</string>
+	<string name="saved_on">%1$s</string>
+	<string name="cancel_recording">Cancel recording</string>
+	<string name="cancel_recording_q">Cancel %1$s?</string>
+	<string name="keep">Keep</string>
+	<string name="recording_cancelled">Cancelled.</string>
+	<string name="delete_recording_q">Delete %1$s?</string>
+	<string name="recording_deleted">Deleted %1$s.</string>
+	<string name="recording_saved">Saved: %1$s</string>
+	<string name="recording_failed">Recording failed: %1$s</string>
+
+	<!-- Settings -->
+	<string name="audio_heading">Audio</string>
+	<string name="prefer_ad">Prefer audio description</string>
+	<string name="preferred_tracks">Preferred audio, comma separated</string>
+	<string name="preferred_tracks_hint">English, Polish</string>
+	<string name="playback_heading">Playback</string>
+	<string name="use_external_player">Use another player app</string>
+	<string name="guide_heading">Guide</string>
+	<string name="guide_days">Guide days ahead (1 to 14)</string>
+	<string name="show_stream_url">Show stream URL</string>
+
+	<plurals name="channel_count">
+		<item quantity="one">%d channel</item>
+		<item quantity="other">%d channels</item>
+	</plurals>
+	<plurals name="movie_count">
+		<item quantity="one">%d movie</item>
+		<item quantity="other">%d movies</item>
+	</plurals>
+	<plurals name="series_count">
+		<item quantity="one">%d series</item>
+		<item quantity="other">%d series</item>
+	</plurals>
+	<plurals name="programme_count">
+		<item quantity="one">%d programme</item>
+		<item quantity="other">%d programmes</item>
+	</plurals>
+	<plurals name="item_count">
+		<item quantity="one">%d item</item>
+		<item quantity="other">%d items</item>
+	</plurals>
+	<plurals name="episode_count">
+		<item quantity="one">%d episode</item>
+		<item quantity="other">%d episodes</item>
+	</plurals>
+	<plurals name="source_count">
+		<item quantity="one">%d playlist</item>
+		<item quantity="other">%d playlists</item>
+	</plurals>
+
+	<string name="help_text">
+# Start
+
+Open Playlists. Add an Xtream login, an M3U URL, an M3U file, or a Stalker portal (address and MAC). Xtream and Stalker bring their own guide. For M3U, add its guide URL.
+
+# Main screen
+
+Search is at the top. It searches every group in the section. Voice, next to it, fills it by speech. Back clears it.
+
+Below: Live TV, Movies, Series. Then Playlists, On now, Guide search, Recordings, More.
+
+Groups are on the left, the list on the right. Both have headings. Picking a group moves you to the list.
+
+# Items
+
+Activate to play. A series opens its episodes.
+
+Actions menu: play in another app, favourite, details, guide, record, download. Without TalkBack: long-press, or the Menu key.
+
+# Guide
+
+On now lists everything airing. A channel\'s guide plays past programmes marked catch-up, and schedules future ones. Guide search finds upcoming programmes.
+
+# Player
+
+Buttons: Pause, Audio, Record, Cast, Full screen, Close. Keys: play/pause, A for audio, F for full screen.
+
+Full screen hides the buttons. Tap, Back, OK or F brings them back.
+
+Audio description is picked when a channel has it. A track you pick is remembered per channel.
+
+# Updates
+
+The app checks for a new version once a day. More, Check for updates checks now. Android asks you to confirm every install.
+
+# Recordings
+
+Saved to Movies/AccessibleIPTV. Scheduled recordings start a minute early and survive a restart.
+	</string>
+</resources>

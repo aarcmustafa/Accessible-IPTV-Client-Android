@@ -1,0 +1,101 @@
+package dev.serrebi.accessibleiptv
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.ZoneOffset
+
+class CoreTest {
+	@Test fun m3uParsesAttributesTitleWithCommaAndHeaderCatchup() {
+		val text = """
+			#EXTM3U catchup="xc" catchup-days="3"
+			#EXTINF:-1 tvg-id="bbc1.uk" tvg-name="BBC One" group-title="UK, News",BBC One, London
+			http://h/live/u/p/1.ts
+			#EXTINF:-1,No Group
+			#EXTGRP:Misc
+			http://h/live/u/p/2.ts
+		""".trimIndent()
+		val ch = M3uParser.parse("s", text)
+		assertEquals(2, ch.size)
+		assertEquals("BBC One, London", ch[0].name)
+		assertEquals("UK, News", ch[0].group)
+		assertEquals("bbc1.uk", ch[0].tvgId)
+		assertEquals(3, ch[0].catchupDays)
+		assertEquals("Misc", ch[1].group)
+	}
+
+	@Test fun headerTailBecomesHeaders() {
+		val (url, h) = M3uParser.splitHeaders("http://a/b.ts|UA=VLC&Referer=http%3A%2F%2Fx")
+		assertEquals("http://a/b.ts", url)
+		assertEquals("VLC", h["User-Agent"])
+		assertEquals("http://x", h["Referer"])
+	}
+
+	private fun ch(url: String, attrs: Map<String, String>) = Channel("s", "1", "C", "G", url, attrs = attrs)
+
+	@Test fun xtreamTimeshiftUrl() {
+		val start = 1_760_000_400_000L // 2025-10-09 09:00 UTC
+		val url = Catchup.url(ch("http://h:80/live/u/p/42.ts", mapOf("catchup" to "xc")), start, start + 30 * 60_000, ZoneOffset.UTC)
+		assertEquals("http://h:80/timeshift/u/p/30/2025-10-09:09-00/42.ts", url)
+	}
+
+	@Test fun templateCatchupIsAppended() {
+		val start = 1_000_000_000_000L
+		val url = Catchup.url(ch("http://h/x.m3u8?t=1", mapOf("catchup-source" to "?utc=\${start}&lutc=\${timestamp}")), start, start + 60_000, ZoneOffset.UTC, nowMs = 2_000_000_000_000L)
+		assertEquals("http://h/x.m3u8?t=1&utc=1000000000&lutc=2000000000", url)
+	}
+
+	@Test fun noCatchupGivesNull() = assertNull(Catchup.url(ch("http://h/1.ts", emptyMap()), 0, 60_000))
+
+	@Test fun audioDescriptionMatching() {
+		assertTrue(AudioTracks.matches("eng AD", "ad"))
+		assertFalse(AudioTracks.matches("Radio", "ad"))
+		assertTrue(AudioTracks.matches("Audiodescription-Ton", "audiodescription"))
+		val names = listOf("English", "English (Audio Description)")
+		assertEquals(1, AudioTracks.choose(names, listOf(false, false), null, true, emptyList()))
+		assertEquals(0, AudioTracks.choose(names, listOf(false, false), "English", true, emptyList()))
+		assertEquals(-1, AudioTracks.choose(names, listOf(false, false), null, false, emptyList()))
+		// The DVB "describes video" flag wins even when the name says nothing.
+		assertEquals(1, AudioTracks.choose(listOf("Polish", "x"), listOf(false, true), null, true, emptyList()))
+	}
+
+	@Test fun xmltvTimes() {
+		assertEquals(0L, Xmltv.parseTime("19700101000000 +0000"))
+		assertEquals(-7_200_000L, Xmltv.parseTime("19700101000000 +0200"))
+		assertEquals(0L, Xmltv.parseTime("19700101000000"))
+		assertNull(Xmltv.parseTime("bad"))
+	}
+
+	@Test fun m3uKindsFromPath() {
+		assertEquals(Channel.KIND_MOVIE, M3uParser.kindOf("http://h/movie/u/p/1.mp4", ""))
+		assertEquals(Channel.KIND_EPISODE, M3uParser.kindOf("http://h/series/u/p/9.mkv", ""))
+		assertEquals(Channel.KIND_LIVE, M3uParser.kindOf("http://h/live/u/p/2.ts", ""))
+	}
+
+	@Test fun stalkerBaseUrl() {
+		assertEquals("http://portal.tv:8080", Stalker.baseUrl("portal.tv:8080/c/"))
+		assertEquals("http://p.tv/stalker_portal", Stalker.baseUrl("http://p.tv/stalker_portal/server/load.php"))
+	}
+
+	@Test fun sentencesDoNotDoubleStops() {
+		assertEquals("A, 8:00 p.m. Next: B, 9 p.m.", Format.sentences(listOf("A, 8:00 p.m.", "Next: B, 9 p.m.")))
+	}
+
+	@Test fun episodeTitlesDropRepetition() {
+		assertEquals("", Xtream.episodeTitle("#1 Happy Family USA - S01E01", "#1 Happy Family USA (2025)"))
+		assertEquals("The Pilot", Xtream.episodeTitle("Lost - S01E01 - The Pilot", "Lost"))
+		assertEquals("The Pilot", Xtream.episodeTitle("The Pilot", "Lost"))
+	}
+
+	@Test fun updateVersionsCompareNumerically() {
+		assertTrue(Updater.isNewer("0.10.0", "0.9.3"))
+		assertFalse(Updater.isNewer("0.2.0", "0.2.0"))
+		assertFalse(Updater.isNewer("0.1.9", "0.2"))
+	}
+
+	@Test fun nameKeyIgnoresPrefixAndQuality() {
+		assertEquals(Xmltv.nameKey("BBC One"), Xmltv.nameKey("UK: BBC One HD"))
+	}
+}

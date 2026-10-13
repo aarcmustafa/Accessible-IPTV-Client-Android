@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<color name="brand">#0B5394</color>
+	<color name="brand_dark">#073763</color>
+	<color name="focus_ring">#FFB300</color>
+	<color name="focus_fill">#330B5394</color>
+</resources>
