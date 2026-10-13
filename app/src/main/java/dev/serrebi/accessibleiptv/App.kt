@@ -40,7 +40,9 @@ class App : Application() {
 		for (src in prefs.sources) {
 			val cache = cacheFile(src, section)
 			all += try {
-				if (!force && cache.exists()) readCache(cache) else fetch(src, section)
+				// Providers add and drop channels: a cache older than 12 hours is fetched again.
+				val fresh = cache.exists() && System.currentTimeMillis() - cache.lastModified() < 12 * 3_600_000L
+				if (!force && fresh) readCache(cache) else fetch(src, section)
 			} catch (e: Exception) {
 				errors += "${src.name}: ${e.message ?: e.javaClass.simpleName}"
 				if (cache.exists()) runCatching { readCache(cache) }.getOrDefault(emptyList()) else emptyList()

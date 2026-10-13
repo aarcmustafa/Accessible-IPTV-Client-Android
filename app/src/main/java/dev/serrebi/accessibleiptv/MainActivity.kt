@@ -248,7 +248,7 @@ class MainActivity : AppCompatActivity() {
 			channelAdapter.submit(list)
 			findViewById<RecyclerView>(R.id.channels).contentDescription = sectionName()
 			channelsHeading.text = if (q.isEmpty()) getString(R.string.list_heading, groupLabel(group), list.size)
-			else getString(R.string.search_heading, list.size)
+			else resources.getQuantityString(R.plurals.result_count, list.size, list.size)
 		}
 	}
 
