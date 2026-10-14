@@ -109,7 +109,7 @@ class SettingsActivity : AppCompatActivity() {
 		prefs.epgDaysAhead = d
 		// Desktop _apply_internal_player_bounds: max in (0, 300], base > 0 and never above max.
 		val max = (maxBuffer.text.toString().toDoubleOrNull() ?: prefs.maxBufferSeconds).let { if (it <= 0) 18.0 else minOf(it, 300.0) }
-		val base = (buffer.text.toString().toDoubleOrNull() ?: prefs.bufferSeconds).let { if (it <= 0) 6.0 else minOf(it, max) }
+		val base = (buffer.text.toString().toDoubleOrNull() ?: prefs.bufferSeconds).let { if (it <= 0) Prefs.DEFAULT_BUFFER.toDouble() else minOf(it, max) }
 		prefs.maxBufferSeconds = max
 		prefs.bufferSeconds = base
 		// Desktop schedule padding: 0 to 180 minutes each side.

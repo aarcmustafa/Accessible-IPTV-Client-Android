@@ -95,11 +95,29 @@ class CoreTest {
 		assertFalse(Updater.isNewer("0.1.9", "0.2"))
 	}
 
-	private fun params(bufferedSec: Double) = androidx.media3.exoplayer.LoadControl.Parameters(
+	private fun params(bufferedSec: Double, rebuffering: Boolean = true) = androidx.media3.exoplayer.LoadControl.Parameters(
 		androidx.media3.exoplayer.analytics.PlayerId.UNSET, androidx.media3.common.Timeline.EMPTY,
 		androidx.media3.exoplayer.source.MediaSource.MediaPeriodId(Any()), 0, (bufferedSec * 1_000_000).toLong(),
-		1f, true, false, androidx.media3.common.C.TIME_UNSET, androidx.media3.common.C.TIME_UNSET,
+		1f, true, rebuffering, androidx.media3.common.C.TIME_UNSET, androidx.media3.common.C.TIME_UNSET,
 	)
+
+	@Test fun quickStartThenFullCushionAfterAStall() {
+		val c = Cushion(6.0, 8.0)
+		assertFalse(c.shouldStartPlayback(params(1.9, rebuffering = false)))
+		assertTrue("the first start waits only 2 s", c.shouldStartPlayback(params(2.0, rebuffering = false)))
+		assertTrue("never more than the cushion itself", Cushion(1.0, 8.0).shouldStartPlayback(params(1.0, rebuffering = false)))
+	}
+
+	@Test fun playsSlowUntilTheCushionIsBuilt() {
+		val c = Cushion(6.0, 8.0)
+		assertEquals(Cushion.SLOW, c.speedFor(2_000_000, 1f))
+		assertEquals(Cushion.SLOW, c.speedFor(5_900_000, Cushion.SLOW)) // keeps building
+		assertEquals(1f, c.speedFor(6_000_000, Cushion.SLOW)) // full: normal speed
+		assertEquals("no flapping just under the target", 1f, c.speedFor(5_500_000, 1f))
+		assertEquals(Cushion.SLOW, c.speedFor(4_900_000, 1f)) // a second short: rebuild
+		c.onStall() // target 7 s
+		assertEquals(Cushion.SLOW, c.speedFor(6_500_000, Cushion.SLOW))
+	}
 
 	@Test fun cushionMatchesDesktopCache() {
 		val c = Cushion(6.0, 8.0)

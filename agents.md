@@ -54,6 +54,10 @@ cvs-health/android-view-accessibility-techniques.
 
 - Player status lines go through `say(text, priority)`: spoken only up to Settings, Announcements (desktop levels 1-3).
 - Debug builds log buffer depth every 2 s (tag AiptvPlayer, `beat`): tells a slow feed from a delivery gap.
+- Quick start (0.2.8): playback starts on 2 s buffered (`Cushion.QUICK_START_SECONDS`), then plays at 0.95 until the
+  Settings buffer (default 10 s; saved old default 6 reads as 10) is held, then 1.0. After a stall it waits for the full
+  cushion. Live TS arrives at real time, so slow play is the only way a player cushion grows. Sky Crime on the TV:
+  start 4.9 s, 0 stalls, 10 s cushion at ~165 s. Cold IPTVCanada tunes can take ~12 s server-side (provider TTFB).
 - Player: live channels reconnect like the desktop (`Reconnect`: 0.4, 2, 4, 8, 8, 8 s, reset after 2 min); catch-up and files do not.
 - Player traps: keep `FLAG_DETECT_ACCESS_UNITS` on the TS extractor (re-encoded IPTV H.264 has no AUD NALs -> audio only without it). Live streams arrive at real time: keep the short rebuffer target in `DefaultLoadControl`.
 - Edge to edge: `App.keepContentClearOfSystemBars()` pads every activity's content by bars/cutout/IME. Do not remove; Samsung's taskbar covered the player buttons.

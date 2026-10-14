@@ -98,10 +98,24 @@ class PlayerActivity : AppCompatActivity() {
 	private val reconnect = Reconnect(android.os.SystemClock::elapsedRealtime)
 	private val retry = android.os.Handler(android.os.Looper.getMainLooper())
 
+	/**
+	 * Quick start, then build the cushion: a live stream that started on 2 s plays 5% slow
+	 * until the full cushion is buffered (Cushion.speedFor), checked once a second.
+	 */
+	private val pace: Runnable = object : Runnable {
+		override fun run() {
+			if (exo.isPlaying && player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE) {
+				val want = cushion.speedFor(exo.totalBufferedDuration * 1000, exo.playbackParameters.speed)
+				if (want != exo.playbackParameters.speed) exo.setPlaybackSpeed(want)
+			}
+			status.postDelayed(this, 1_000)
+		}
+	}
+
 	/** Debug builds: buffer depth every 2 s, to tell a slow feed (drains bit by bit) from a delivery gap (drains at once). */
 	private val heartbeat: Runnable = object : Runnable {
 		override fun run() {
-			android.util.Log.i("AiptvPlayer", "beat state=${exo.playbackState} playing=${exo.isPlaying} bufferedMs=${exo.totalBufferedDuration} cushionMs=${cushion.targetUs / 1000}")
+			android.util.Log.i("AiptvPlayer", "beat state=${exo.playbackState} playing=${exo.isPlaying} bufferedMs=${exo.totalBufferedDuration} cushionMs=${cushion.targetUs / 1000} speed=${exo.playbackParameters.speed}")
 			retry.postDelayed(this, 2_000)
 		}
 	}
@@ -165,6 +179,7 @@ class PlayerActivity : AppCompatActivity() {
 		player.prepare()
 		player.playWhenReady = true
 		if (BuildConfig.DEBUG) heartbeat.run()
+		if (live) status.post(pace)
 		say(getString(R.string.connecting), 2)
 
 		pause.setOnClickListener {
@@ -451,6 +466,7 @@ class PlayerActivity : AppCompatActivity() {
 	override fun onDestroy() {
 		retry.removeCallbacksAndMessages(null)
 		findViewById<View>(R.id.nowPlaying).removeCallbacks(programmeTick)
+		status.removeCallbacks(pace)
 		player.release() // releases the wrapped local player too
 		super.onDestroy()
 	}

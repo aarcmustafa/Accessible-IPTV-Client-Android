@@ -169,7 +169,7 @@ class ScreenTest {
 		a.findViewById<EditText>(R.id.maxBuffer).setText("abc")
 		a.findViewById<EditText>(R.id.days).setText("")
 		c.resume().pause()
-		assertEquals(6.0, app.prefs.bufferSeconds, 0.0)
+		assertEquals(10.0, app.prefs.bufferSeconds, 0.0)
 		assertEquals(300.0, app.prefs.maxBufferSeconds, 0.0)
 		assertEquals(2, app.prefs.epgDaysAhead)
 	}

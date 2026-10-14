@@ -10,15 +10,17 @@ import androidx.media3.exoplayer.trackselection.ExoTrackSelection
 import androidx.media3.exoplayer.upstream.Allocator
 
 /**
- * The desktop client's VLC cache, ported: playback starts, and resumes after a stall,
- * only once [startSeconds] are buffered, so that much cushion is always in hand. Each
- * stall adds one second, up to [maxSeconds] (desktop: base_buffer_seconds + 1 per stall,
- * capped at max_buffer_seconds). A new player starts again from [startSeconds].
+ * The desktop client's VLC cache, ported, with a quick start. Playback starts once
+ * [quickSeconds] are buffered, then [speedFor] plays a little slow until the full
+ * [startSeconds] cushion has built up: a live stream arrives at real time, so slower
+ * playback is the only way the cushion can grow. After a stall it resumes only with the
+ * full cushion in hand, and each stall adds one second, up to [maxSeconds] (desktop:
+ * base_buffer_seconds + 1 per stall, capped at max_buffer_seconds).
  *
  * Every PlayerId overload is forwarded by hand: Kotlin's `by` delegation skips Java default
  * methods, and LoadControl's defaults throw "not implemented" (crashed the player on open).
  */
-class Cushion(startSeconds: Double, maxSeconds: Double) : LoadControl {
+class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = QUICK_START_SECONDS) : LoadControl {
 	// Keep loading until the maximum is buffered, like VLC filling its cache.
 	private val inner = DefaultLoadControl.Builder()
 		.setBufferDurationsMs(msOf(maxSeconds), msOf(maxSeconds) + 2_000, msOf(startSeconds), msOf(startSeconds))
@@ -29,13 +31,27 @@ class Cushion(startSeconds: Double, maxSeconds: Double) : LoadControl {
 	@Volatile var targetUs = (startSeconds * 1_000_000).toLong()
 		private set
 
+	private val quickUs = (minOf(quickSeconds, startSeconds) * 1_000_000).toLong()
+
 	/** A stall happened: raise the cushion by one second, as the desktop does. */
 	fun onStall() {
 		targetUs = minOf(maxUs, targetUs + 1_000_000)
 	}
 
+	// First start (and a reconnect, which prepares afresh): quick. Back from a stall: the whole cushion.
 	override fun shouldStartPlayback(parameters: LoadControl.Parameters): Boolean =
-		parameters.bufferedDurationUs >= targetUs
+		parameters.bufferedDurationUs >= if (parameters.rebuffering) targetUs else quickUs
+
+	/**
+	 * Playback speed for a live stream holding [bufferedUs]: [SLOW] while the cushion is short
+	 * of the target, normal again once it is full, and slow again only when it drops a second
+	 * below (so the speed does not flip back and forth around the target).
+	 */
+	fun speedFor(bufferedUs: Long, current: Float): Float = when {
+		bufferedUs >= targetUs -> 1f
+		current < 1f || bufferedUs < targetUs - 1_000_000 -> SLOW
+		else -> 1f
+	}
 
 	override fun onPrepared(playerId: PlayerId) = inner.onPrepared(playerId)
 	override fun onTracksSelected(parameters: LoadControl.Parameters, trackGroups: TrackGroupArray, trackSelections: Array<out ExoTrackSelection?>) =
@@ -49,8 +65,14 @@ class Cushion(startSeconds: Double, maxSeconds: Double) : LoadControl {
 	override fun shouldContinuePreloading(playerId: PlayerId, timeline: Timeline, mediaPeriodId: MediaSource.MediaPeriodId, bufferedDurationUs: Long): Boolean =
 		inner.shouldContinuePreloading(playerId, timeline, mediaPeriodId, bufferedDurationUs)
 
-	private companion object {
-		fun msOf(seconds: Double) = (seconds * 1000).toInt().coerceAtLeast(100)
+	companion object {
+		/** Seconds buffered before the picture first starts. Dispatcharr sends about 3 s at once. */
+		const val QUICK_START_SECONDS = 2.0
+
+		// ponytail: fixed 5% slower (pitch kept); 4 s of cushion takes 80 s to build. Tune if it is heard.
+		const val SLOW = 0.95f
+
+		private fun msOf(seconds: Double) = (seconds * 1000).toInt().coerceAtLeast(100)
 	}
 }
 

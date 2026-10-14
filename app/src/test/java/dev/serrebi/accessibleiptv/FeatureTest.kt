@@ -232,6 +232,14 @@ class FeatureTest {
 		assertFalse(app.prefs.speakSubtitles)
 	}
 
+	@Test fun theOldSixSecondDefaultBecomesTen() {
+		assertEquals(10.0, app.prefs.bufferSeconds, 0.0) // fresh install
+		app.prefs.bufferSeconds = 6.0 // 0.2.5 to 0.2.7 default, saved by Settings
+		assertEquals(10.0, app.prefs.bufferSeconds, 0.0)
+		app.prefs.bufferSeconds = 8.0 // set by hand: kept
+		assertEquals(8.0, app.prefs.bufferSeconds, 0.0)
+	}
+
 	@Test fun exportImportRoundTripsEverything() {
 		app.prefs.sources = listOf(Source("a", Source.TYPE_XTREAM, "X", "http://h", "u", "p"))
 		app.prefs.favorites = setOf("a:1", "a:2")

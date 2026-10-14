@@ -7,6 +7,10 @@ import org.json.JSONObject
 
 /** Settings, sources, favourites and remembered audio tracks, kept as plain JSON in prefs. */
 class Prefs(context: Context) {
+	companion object {
+		const val DEFAULT_BUFFER = 10f
+	}
+
 	private val sp = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
 	var sources: List<Source>
@@ -42,8 +46,12 @@ class Prefs(context: Context) {
 		set(v) = sp.edit { putBoolean("showStreamUrl", v) }
 
 	/** Desktop internal_player_buffer_seconds: seconds buffered before playing and after a stall. */
+	// 10 s: playback starts on 2 s (Cushion.QUICK_START_SECONDS) and builds the rest by playing
+	// slightly slow, so a larger cushion no longer means a slower start. SceneTime and IPTVCanada
+	// pause 12-25 s at the source; the server's 15 s plus this covers them. The old default 6 is
+	// read as 10 (only a value set by hand is kept), like the desktop's default migration.
 	var bufferSeconds: Double
-		get() = sp.getFloat("bufferSeconds", 6f).toDouble()
+		get() = sp.getFloat("bufferSeconds", DEFAULT_BUFFER).toDouble().let { if (it == 6.0) DEFAULT_BUFFER.toDouble() else it }
 		set(v) = sp.edit { putFloat("bufferSeconds", v.toFloat()) }
 
 	/** Desktop internal_player_max_buffer_seconds: ceiling for the +1 s per stall. */
