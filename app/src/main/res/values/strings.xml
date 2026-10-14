@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Keep on-screen and spoken text short: say it once, plainly. -->
 <resources>
-	<string name="app_name">Accessible IPTV</string>
+	<string name="app_name" translatable="false">Accessible IPTV</string>
 
 	<!-- Main screen -->
 	<string name="playlists_and_guides">Playlists</string>
@@ -14,7 +14,7 @@
 	<string name="voice_search">Voice</string>
 	<string name="voice_prompt">Say a name</string>
 	<string name="voice_unavailable">No voice search on this device.</string>
-	<string name="list_heading">%1$s, %2$d</string>
+	<string name="list_heading" translatable="false">%1$s, %2$d</string>
 	<string name="section">Section</string>
 	<string name="live_tv">Live TV</string>
 	<string name="movies">Movies</string>
@@ -29,7 +29,7 @@
 	<string name="filter">Filter</string>
 	<string name="selected">selected</string>
 	<string name="favorite">favourite</string>
-	<string name="favorite_name">★ %1$s</string>
+	<string name="favorite_name" translatable="false">★ %1$s</string>
 	<string name="until">%1$s, until %2$s</string>
 	<string name="now_programme">Now: %1$s</string>
 	<string name="next_programme">Next: %1$s</string>
@@ -74,7 +74,7 @@
 	<string name="recording_channel">Recording %1$s</string>
 
 	<!-- Player -->
-	<string name="player_title">%1$s</string>
+	<string name="player_title" translatable="false">%1$s</string>
 	<string name="catchup_title">%1$s, catch-up</string>
 	<string name="pause">Pause</string>
 	<string name="play">Play</string>
@@ -86,6 +86,7 @@
 	<string name="video_full_screen">Video. Activate to show controls.</string>
 	<string name="connecting">Connecting…</string>
 	<string name="buffering">Buffering…</string>
+	<string name="reconnecting">Reconnecting…</string>
 	<string name="playing">Playing</string>
 	<string name="stream_ended">Ended</string>
 	<string name="play_failed">Failed: %1$s</string>
@@ -119,7 +120,7 @@
 	<string name="m3u_file">M3U file</string>
 	<string name="field_portal">Portal address</string>
 	<string name="field_mac">MAC address</string>
-	<string name="mac_hint">00:1A:79:00:00:00</string>
+	<string name="mac_hint" translatable="false">00:1A:79:00:00:00</string>
 	<string name="mac_invalid">MAC must look like 00:1A:79:12:34:56.</string>
 	<string name="edit_source">Edit playlist</string>
 	<string name="xtream_at">Xtream, %1$s</string>
@@ -142,9 +143,9 @@
 	<string name="stop_all_recordings">Stop all</string>
 	<string name="stop_recording">Stop</string>
 	<string name="recordings_stopped">Stopped.</string>
-	<string name="recordings_heading">%1$d scheduled, %2$d saved</string>
+	<string name="recordings_heading">%1$d recording, %2$d scheduled, %3$d saved</string>
 	<string name="scheduled_for">%1$s to %2$s</string>
-	<string name="saved_on">%1$s</string>
+	<string name="saved_on" translatable="false">%1$s</string>
 	<string name="cancel_recording">Cancel recording</string>
 	<string name="cancel_recording_q">Cancel %1$s?</string>
 	<string name="keep">Keep</string>
@@ -187,10 +188,6 @@
 		<item quantity="one">%d programme</item>
 		<item quantity="other">%d programmes</item>
 	</plurals>
-	<plurals name="item_count">
-		<item quantity="one">%d item</item>
-		<item quantity="other">%d items</item>
-	</plurals>
 	<plurals name="episode_count">
 		<item quantity="one">%d episode</item>
 		<item quantity="other">%d episodes</item>
@@ -200,43 +197,38 @@
 		<item quantity="other">%d playlists</item>
 	</plurals>
 
-	<string name="help_text">
-# Start
+	<!-- 0.2.6: ported from the desktop client. -->
+	<string name="download_ended_early">Ended early: %1$s</string>
+	<string name="recording_now">Recording now</string>
+	<string name="recording_until">Recording until %1$s</string>
+	<string name="recording_stopped">Stopped: %1$s</string>
+	<string name="stop_recording_channel">Stop recording</string>
+	<string name="previous_channel">Previous channel</string>
+	<string name="recently_watched">Recently watched</string>
+	<string name="no_previous">No previous channel.</string>
+	<string name="no_recent">Nothing watched yet.</string>
+	<string name="go_to_number">Go to channel number</string>
+	<string name="channel_number">Number</string>
+	<string name="number_not_found">No channel %1$s.</string>
+	<string name="channel_typed">Channel %1$s</string>
+	<string name="subtitles">Subtitles</string>
+	<string name="subtitles_off">Off</string>
+	<string name="subtitles_set">Subtitles: %1$s</string>
+	<string name="no_subtitles">No subtitles.</string>
+	<string name="speak_subtitles">Speak subtitles</string>
+	<string name="announcements">Announcements</string>
+	<string name="announce_none">None</string>
+	<string name="announce_errors">Errors only</string>
+	<string name="announce_important">Important events</string>
+	<string name="announce_detailed">Detailed status</string>
+	<string name="pre_padding">Minutes before</string>
+	<string name="post_padding">Minutes after</string>
+	<string name="backup_heading">Backup</string>
+	<string name="export_settings">Export settings</string>
+	<string name="import_settings">Import settings</string>
+	<string name="settings_exported">Settings saved.</string>
+	<string name="settings_imported">Settings loaded.</string>
+	<string name="settings_failed">Failed: %1$s</string>
 
-Open Playlists. Add an Xtream login, an M3U URL, an M3U file, or a Stalker portal (address and MAC). Xtream and Stalker bring their own guide. For M3U, add its guide URL.
-
-# Main screen
-
-Search is at the top. It searches every group in the section. Voice, next to it, fills it by speech. Back clears it.
-
-Below: Live TV, Movies, Series. Then Playlists, On now, Guide search, Recordings, More.
-
-Groups are on the left, the list on the right. Both have headings. Picking a group moves you to the list.
-
-# Items
-
-Activate to play. A series opens its episodes.
-
-Actions menu: play in another app, favourite, details, guide, record, download. Without TalkBack: long-press, or the Menu key.
-
-# Guide
-
-On now lists everything airing. A channel\'s guide plays past programmes marked catch-up, and schedules future ones. Guide search finds upcoming programmes.
-
-# Player
-
-Buttons: Pause, Audio, Record, Cast, Full screen, Close. Keys: play/pause, A for audio, F for full screen.
-
-Full screen hides the buttons. Tap, Back, OK or F brings them back.
-
-Audio description is picked when a channel has it. A track you pick is remembered per channel.
-
-# Updates
-
-The app checks for a new version once a day. More, Check for updates checks now. Android asks you to confirm every install.
-
-# Recordings
-
-Saved to Movies/AccessibleIPTV. Scheduled recordings start a minute early and survive a restart.
-	</string>
+	<string name="language">Language</string>
 </resources>

@@ -95,6 +95,10 @@ class SourcesActivity : ListScreen() {
 			.create()
 		dialog.setOnShowListener {
 			dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+				// A whole panel link pasted as the server carries the login: fill it in.
+				if (xtream && user.text.isBlank()) Xtream.credentialsFromUrl(url.text.toString())?.let { (s, u, p) ->
+					url.setText(s); user.setText(u); pass.setText(p)
+				}
 				val macOk = !stalker || Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$").matches(mac.text.trim())
 				val missing = listOfNotNull(
 					url.takeIf { !file && it.text.isBlank() },
@@ -109,7 +113,14 @@ class SourcesActivity : ListScreen() {
 					missing.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
 					return@setOnClickListener
 				}
-				val server = if (xtream || stalker) Xtream.normalizeServer(url.text.toString()) else url.text.toString().trim()
+				val typed = url.text.toString().trim()
+				val server = when {
+					xtream -> Xtream.normalizeServer(typed)
+					stalker -> Xtream.withScheme(typed)
+					// "example.com/list.m3u" failed with "no protocol".
+					!file && !typed.contains("://") -> "http://$typed"
+					else -> typed
+				}
 				save(Source(
 					id = existing?.id ?: UUID.randomUUID().toString(),
 					type = type,

@@ -69,7 +69,10 @@ class Stalker(private val src: Source) {
 				url = Channel.STALKER_SCHEME + cmd,
 				tvgId = r.optString("xmltv_id").ifEmpty { r.optString("epg_id") },
 				logo = r.optString("logo"),
-				attrs = if (archive) mapOf("catchup" to "stalker", "catchup-days" to r.optString("tv_archive_duration").ifEmpty { "0" }) else emptyMap(),
+				attrs = buildMap {
+					if (archive) { put("catchup", "stalker"); put("catchup-days", r.optString("tv_archive_duration").ifEmpty { "0" }) }
+					r.optString("number").takeIf { it.isNotBlank() && it != "null" }?.let { put(Channel.CHNO, it) }
+				},
 			)
 		}
 		return out
@@ -96,7 +99,7 @@ class Stalker(private val src: Source) {
 	companion object {
 		/** Portal base without a trailing /c, /portal.php or /server/load.php. */
 		fun baseUrl(url: String): String {
-			var u = Xtream.normalizeServer(url)
+			var u = Xtream.withScheme(url)
 			for (tail in listOf("/portal.php", "/server/load.php", "/load.php", "/c")) if (u.endsWith(tail, true)) u = u.dropLast(tail.length)
 			return u.trimEnd('/')
 		}

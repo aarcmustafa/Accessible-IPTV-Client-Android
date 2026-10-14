@@ -53,3 +53,31 @@ class Cushion(startSeconds: Double, maxSeconds: Double) : LoadControl {
 		fun msOf(seconds: Double) = (seconds * 1000).toInt().coerceAtLeast(100)
 	}
 }
+
+/**
+ * The desktop player's stream recovery (_schedule_restart): a dropped live stream is
+ * reopened after 0.4, 2, 4, 8, 8, 8 s, then given up. A count that sat unused for two
+ * minutes starts again, so one bad evening does not use up the whole budget.
+ */
+class Reconnect(private val clock: () -> Long) {
+	private var attempts = 0
+	private var last = 0L
+
+	/** Delay before the next try in ms, or null when it is time to give up. */
+	fun next(): Long? {
+		val now = clock()
+		if (last != 0L && now - last >= RESET_MS) attempts = 0
+		if (attempts >= MAX) return null
+		attempts++
+		last = now
+		return delayMs(attempts)
+	}
+
+	fun reset() { attempts = 0; last = 0L }
+
+	companion object {
+		const val MAX = 6
+		const val RESET_MS = 120_000L
+		fun delayMs(attempt: Int): Long = if (attempt <= 1) 400L else minOf(1000L shl (attempt - 1), 8000L)
+	}
+}

@@ -1,0 +1,279 @@
+package dev.serrebi.accessibleiptv
+
+import android.content.Intent
+import android.os.Looper
+import android.view.KeyEvent
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
+import androidx.core.view.ViewCompat
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowDialog
+import org.robolectric.shadows.ShadowPopupMenu
+import java.time.Duration
+
+/** Screens as TalkBack and a remote meet them: one stop per row, headings, errors on the field, status lines. */
+@RunWith(RobolectricTestRunner::class)
+class ScreenTest {
+	private val server = FakeServer()
+	private val app get() = RuntimeEnvironment.getApplication() as App
+
+	@Before fun quiet() {
+		app.prefs.lastUpdateCheck = System.currentTimeMillis() // no GitHub call from tests
+	}
+
+	@After fun stop() = server.close()
+
+	private fun waitUntil(ms: Long = 5_000, cond: () -> Boolean) {
+		val end = System.currentTimeMillis() + ms
+		while (!cond()) {
+			shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+			check(System.currentTimeMillis() < end) { "timed out" }
+			Thread.sleep(10)
+		}
+	}
+
+	private fun playlist(body: String) {
+		server.text("/list.m3u", body)
+		app.prefs.sources = listOf(Source("src", Source.TYPE_M3U, "List", "${server.url}/list.m3u"))
+	}
+
+	private fun isHeading(v: View) = ViewCompat.isAccessibilityHeading(v)
+
+	// ---- Rows ----
+
+	@Test fun aRowIsOneStopAndItsActionsDoNotPileUpOnRebind() {
+		val host = Robolectric.buildActivity(HelpActivity::class.java).setup().get()
+		val row = LayoutInflater.from(host).inflate(R.layout.item_row, null)
+		bindRow(row, "BBC One", {}, listOf(RowAction("Play") {}, RowAction("Favorite") {}))
+		bindRow(row, "ITV", {}, listOf(RowAction("Record") {}))
+		val labels = row.createAccessibilityNodeInfo().actionList.mapNotNull { it.label?.toString() }
+		assertEquals("a recycled row keeps only its new actions", listOf("Record"), labels)
+		assertEquals("ITV", row.contentDescription)
+		assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, row.findViewById<View>(R.id.line1).importantForAccessibility)
+		assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, row.findViewById<View>(R.id.line2).importantForAccessibility)
+	}
+
+	@Test fun theMenuKeyOpensTheSameActions() {
+		val host = Robolectric.buildActivity(HelpActivity::class.java).setup().get()
+		val row = LayoutInflater.from(host).inflate(R.layout.item_row, null)
+		host.setContentView(row) // a popup needs an anchor on screen
+		shadowOf(Looper.getMainLooper()).idle()
+		assertTrue(row.requestFocus()) // as when D-pad or TalkBack is on the row
+		var ran = ""
+		bindRow(row, "BBC One", {}, listOf(RowAction("Play") { ran = "play" }, RowAction("Favorite") { ran = "fav" }))
+		assertTrue("the row takes the Menu key", row.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MENU)))
+		val menu = ShadowPopupMenu.getLatestPopupMenu().menu
+		assertEquals(listOf("Play", "Favorite"), (0 until menu.size()).map { menu.getItem(it).title.toString() })
+		menu.performIdentifierAction(menu.getItem(1).itemId, 0)
+		assertEquals("fav", ran)
+	}
+
+	// ---- Main screen ----
+
+	@Test fun noPlaylistsSaysSoAndHeadingsAreHeadings() {
+		val a = Robolectric.buildActivity(MainActivity::class.java).setup().get()
+		assertEquals(a.getString(R.string.no_sources), a.findViewById<TextView>(R.id.status).text.toString())
+		assertTrue(isHeading(a.findViewById(R.id.groupsHeading)))
+		assertTrue(isHeading(a.findViewById(R.id.channelsHeading)))
+	}
+
+	@Test fun channelsLoadAndEachRowSpeaksItsName() {
+		playlist("#EXTM3U\n#EXTINF:-1 group-title=\"News\",BBC One\nhttp://h/1.ts\n#EXTINF:-1 group-title=\"Sport\",Arena\nhttp://h/2.ts")
+		val a = Robolectric.buildActivity(MainActivity::class.java).setup().get()
+		val rv = a.findViewById<RecyclerView>(R.id.channels)
+		waitUntil { rv.adapter!!.itemCount == 2 && rv.findViewHolderForAdapterPosition(0) != null }
+		assertEquals("BBC One", rv.findViewHolderForAdapterPosition(0)!!.itemView.contentDescription.toString())
+		assertTrue(a.findViewById<TextView>(R.id.status).text.contains("2"))
+		val groups = a.findViewById<RecyclerView>(R.id.groups)
+		waitUntil { groups.findViewHolderForAdapterPosition(0) != null }
+		// "All, 2, selected": the reader says which group is showing.
+		assertTrue(groups.findViewHolderForAdapterPosition(0)!!.itemView.contentDescription.endsWith(a.getString(R.string.selected)))
+	}
+
+	@Test fun searchRanksHitsAndBackClearsIt() {
+		playlist("#EXTM3U\n#EXTINF:-1,PEACOCK 03 Cup Challenge\nhttp://h/1.ts\n#EXTINF:-1,The Challenge\nhttp://h/2.ts\n#EXTINF:-1,Challenge\nhttp://h/3.ts")
+		val a = Robolectric.buildActivity(MainActivity::class.java).setup().get()
+		val rv = a.findViewById<RecyclerView>(R.id.channels)
+		@Suppress("UNCHECKED_CAST") val adapter = rv.adapter as RowAdapter<Channel>
+		waitUntil { adapter.itemCount == 3 }
+		a.findViewById<EditText>(R.id.filter).setText("challenge")
+		waitUntil { adapter.items.firstOrNull()?.name == "Challenge" }
+		assertEquals(listOf("Challenge", "The Challenge", "PEACOCK 03 Cup Challenge"), adapter.items.map { it.name })
+		a.onBackPressedDispatcher.onBackPressed()
+		assertEquals("", a.findViewById<EditText>(R.id.filter).text.toString())
+		assertTrue("Back with search text does not close the app", !a.isFinishing)
+	}
+
+	// ---- Settings ----
+
+	@Test fun settingsKeepNumbersInRange() {
+		val c = Robolectric.buildActivity(SettingsActivity::class.java).setup()
+		val a = c.get()
+		a.findViewById<EditText>(R.id.buffer).setText("500")
+		a.findViewById<EditText>(R.id.maxBuffer).setText("999")
+		a.findViewById<EditText>(R.id.days).setText("99")
+		c.pause()
+		assertEquals(300.0, app.prefs.maxBufferSeconds, 0.0)
+		assertEquals(300.0, app.prefs.bufferSeconds, 0.0)
+		assertEquals(14, app.prefs.epgDaysAhead)
+		a.findViewById<EditText>(R.id.buffer).setText("-1")
+		a.findViewById<EditText>(R.id.maxBuffer).setText("abc")
+		a.findViewById<EditText>(R.id.days).setText("")
+		c.resume().pause()
+		assertEquals(6.0, app.prefs.bufferSeconds, 0.0)
+		assertEquals(300.0, app.prefs.maxBufferSeconds, 0.0)
+		assertEquals(2, app.prefs.epgDaysAhead)
+	}
+
+	// ---- Playlists ----
+
+	private fun openAdd(a: SourcesActivity, label: Int): AlertDialog {
+		val bar = a.findViewById<LinearLayout>(R.id.buttons)
+		(0 until bar.childCount).map { bar.getChildAt(it) as Button }.first { it.text == a.getString(label) }.performClick()
+		shadowOf(Looper.getMainLooper()).idle() // runs the dialog's OnShowListener, which wires Save
+		return ShadowDialog.getLatestDialog() as AlertDialog
+	}
+
+	@Test fun anEmptyXtreamFormPutsTheErrorOnTheField() {
+		val a = Robolectric.buildActivity(SourcesActivity::class.java).setup().get()
+		val d = openAdd(a, R.string.add_xtream)
+		d.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+		assertEquals(a.getString(R.string.field_required), d.findViewById<EditText>(R.id.url)!!.error.toString())
+		assertTrue("the form stays open", d.isShowing)
+		assertEquals(emptyList<Source>(), app.prefs.sources)
+	}
+
+	@Test fun aPastedPanelLinkFillsTheXtreamLogin() {
+		val a = Robolectric.buildActivity(SourcesActivity::class.java).setup().get()
+		val d = openAdd(a, R.string.add_xtream)
+		d.findViewById<EditText>(R.id.url)!!.setText("http://h:8080/get.php?username=me&password=pw&type=m3u_plus")
+		d.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+		val s = app.prefs.sources.single()
+		assertEquals("http://h:8080", s.url)
+		assertEquals("me", s.username)
+		assertEquals("pw", s.password)
+		assertEquals("h", s.name)
+	}
+
+	@Test fun aStalkerMacIsChecked() {
+		val a = Robolectric.buildActivity(SourcesActivity::class.java).setup().get()
+		val d = openAdd(a, R.string.add_stalker)
+		d.findViewById<EditText>(R.id.url)!!.setText("http://p.tv/stalker_portal/server/load.php")
+		d.findViewById<EditText>(R.id.mac)!!.setText("00:1A:79:12:34")
+		d.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+		assertEquals(a.getString(R.string.mac_invalid), d.findViewById<EditText>(R.id.mac)!!.error.toString())
+		d.findViewById<EditText>(R.id.mac)!!.setText("00:1a:79:12:34:56")
+		d.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+		val s = app.prefs.sources.single()
+		assertEquals("00:1A:79:12:34:56", s.mac)
+		assertEquals("http://p.tv/stalker_portal/server/load.php", s.url)
+	}
+
+	@Test fun anM3uAddressWithoutSchemeGetsOne() {
+		val a = Robolectric.buildActivity(SourcesActivity::class.java).setup().get()
+		val d = openAdd(a, R.string.add_m3u)
+		d.findViewById<EditText>(R.id.url)!!.setText("example.com/list.m3u")
+		d.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+		assertEquals("http://example.com/list.m3u", app.prefs.sources.single().url)
+	}
+
+	// ---- Guide, recordings, help ----
+
+	@Test fun aRestoredGuideScreenShowsItsChannelNotOnNow() {
+		playlist("#EXTM3U\n#EXTINF:-1 tvg-id=\"bbc\",BBC One\nhttp://h/1.ts")
+		runBlocking { app.load(App.LIVE, false) }
+		val key = app.channels[0].key
+		@Suppress("UNCHECKED_CAST")
+		(App::class.java.getDeclaredField("lists").apply { isAccessible = true }.get(app) as MutableMap<String, *>).clear()
+		val a = Robolectric.buildActivity(ProgrammesActivity::class.java, Intent(app, ProgrammesActivity::class.java).putExtra("key", key)).setup().get()
+		waitUntil { a.title.isNotEmpty() }
+		assertEquals(a.getString(R.string.guide_for, "BBC One"), a.title.toString())
+		assertTrue(isHeading(a.findViewById(R.id.listHeading)))
+	}
+
+	@Test fun recordingsHeadingCountsScheduled() {
+		Recorder.schedule(app, Channel("s", "1", "BBC One", "", "http://h/1.ts"), "News", System.currentTimeMillis() + 3_600_000, System.currentTimeMillis() + 7_200_000)
+		val a = Robolectric.buildActivity(RecordingsActivity::class.java).setup().get()
+		assertEquals(a.getString(R.string.recordings_heading, 0, 1, 0), a.findViewById<TextView>(R.id.listHeading).text.toString())
+	}
+
+	@Test fun helpHasHeadingsToJumpBetween() {
+		val a = Robolectric.buildActivity(HelpActivity::class.java).setup().get()
+		val col = ((a.findViewById<View>(android.R.id.content) as android.view.ViewGroup).getChildAt(0) as android.widget.ScrollView).getChildAt(0) as LinearLayout
+		val views = (0 until col.childCount).map { col.getChildAt(it) as TextView }
+		assertTrue(views.count { isHeading(it) } >= 3)
+		assertTrue("every paragraph reachable with a D-pad", views.all { it.isFocusable })
+		assertTrue("no raw markdown read aloud", views.none { it.text.startsWith("#") })
+	}
+
+	// ---- Player ----
+
+	private fun player(url: String, key: String, catchup: Boolean = false) = Robolectric.buildActivity(
+		PlayerActivity::class.java,
+		Intent(app, PlayerActivity::class.java).putExtra("url", url).putExtra("title", "BBC One").putExtra("key", key).putExtra("catchup", catchup),
+	)
+
+	@Test fun playerControlsAreRealLabelledButtons() {
+		val a = player("${server.url}/live.ts", "").setup().get()
+		shadowOf(Looper.getMainLooper()).idle()
+		val ids = listOf(R.id.btnPause, R.id.btnSubs, R.id.btnAudio, R.id.btnRecord, R.id.btnCast, R.id.btnFull, R.id.btnClose)
+		for (id in ids) {
+			val b = a.findViewById<Button>(id)
+			assertTrue(b.text.isNotBlank())
+			assertTrue(b.isFocusable)
+			assertEquals(View.VISIBLE, b.visibility)
+		}
+		assertTrue("OK on a remote lands on Pause, not on " + a.currentFocus?.let { runCatching { a.resources.getResourceEntryName(it.id) }.getOrDefault(it.javaClass.simpleName) }, a.findViewById<Button>(R.id.btnPause).isFocused)
+		a.findViewById<Button>(R.id.btnRecord).performClick()
+		assertEquals(a.getString(R.string.cannot_record_this), a.findViewById<TextView>(R.id.playerStatus).text.toString())
+	}
+
+	@Test fun fullScreenKeepsOneLabelledStopAndBackRestoresControls() {
+		val a = player("${server.url}/live.ts", "").setup().get()
+		a.findViewById<Button>(R.id.btnFull).performClick()
+		val video = a.findViewById<View>(R.id.video)
+		assertEquals(View.GONE, a.findViewById<View>(R.id.controls).visibility)
+		assertTrue(video.isFocusable)
+		assertNotNull(video.contentDescription)
+		a.onBackPressedDispatcher.onBackPressed()
+		assertEquals(View.VISIBLE, a.findViewById<View>(R.id.controls).visibility)
+		assertNull(video.contentDescription)
+		assertTrue(!a.isFinishing)
+	}
+
+	@Test fun aDroppedLiveStreamReconnects() {
+		playlist("#EXTM3U\n#EXTINF:-1,BBC One\n${server.url}/live.ts")
+		runBlocking { app.load(App.LIVE, false) }
+		server.text("/live.ts", "gone", status = 404)
+		val a = player("${server.url}/live.ts", app.channels[0].key).setup().get()
+		val status = a.findViewById<TextView>(R.id.playerStatus)
+		waitUntil(10_000) { status.text.toString() == a.getString(R.string.reconnecting) }
+	}
+
+	@Test fun aFailedCatchupIsNotRetriedForever() {
+		playlist("#EXTM3U\n#EXTINF:-1,BBC One\n${server.url}/live.ts")
+		runBlocking { app.load(App.LIVE, false) }
+		server.text("/arch.ts", "gone", status = 404)
+		val a = player("${server.url}/arch.ts", app.channels[0].key, catchup = true).setup().get()
+		val pause = a.findViewById<Button>(R.id.btnPause)
+		waitUntil(10_000) { pause.text.toString() == a.getString(R.string.retry) }
+	}
+}

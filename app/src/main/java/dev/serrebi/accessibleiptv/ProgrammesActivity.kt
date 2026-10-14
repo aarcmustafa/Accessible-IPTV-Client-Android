@@ -20,11 +20,11 @@ class ProgrammesActivity : ListScreen() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		val ch = intent.getStringExtra("key")?.let { app.channel(it) }
+		val key = intent.getStringExtra("key")
 		val searchMode = intent.getBooleanExtra("search", false)
-		oneChannel = ch != null
+		oneChannel = key != null
 		title = when {
-			ch != null -> getString(R.string.guide_for, ch.name)
+			key != null -> app.channel(key)?.let { getString(R.string.guide_for, it.name) }.orEmpty()
 			searchMode -> getString(R.string.search_guide)
 			else -> getString(R.string.whats_on_now)
 		}
@@ -37,6 +37,7 @@ class ProgrammesActivity : ListScreen() {
 				searchJob?.cancel()
 				searchJob = lifecycleScope.launch {
 					delay(400)
+					if (!app.isLoaded(App.LIVE)) app.load(App.LIVE, force = false)
 					all = if (q.length < 2) emptyList() else withContext(Dispatchers.IO) { app.epg.search(q, app.channels) }
 					show("")
 					status.status(if (q.length >= 2 && all.isEmpty()) getString(R.string.no_matches) else "")
@@ -49,6 +50,11 @@ class ProgrammesActivity : ListScreen() {
 
 		status.status(getString(R.string.loading))
 		lifecycleScope.launch {
+			// After Android killed the app, the restored screen has to load the channel list again.
+			if (!app.isLoaded(App.LIVE)) app.load(App.LIVE, force = false)
+			val ch = key?.let { app.channel(it) }
+			if (key != null && ch == null) return@launch finish()
+			ch?.let { title = getString(R.string.guide_for, it.name) }
 			all = withContext(Dispatchers.IO) {
 				if (ch != null) {
 					val now = System.currentTimeMillis()
@@ -87,7 +93,7 @@ class ProgrammesActivity : ListScreen() {
 		val actions = ArrayList<RowAction>()
 		if (p.description.isNotBlank()) actions += RowAction(getString(R.string.programme_details)) { alert(p.title, "${Format.programme(p)}\n\n${p.description}") }
 		if (p.stop > now) actions += RowAction(getString(R.string.schedule_recording)) { schedule(p, ch) }
-		if (catchupState(p, ch, now)) actions += RowAction(getString(R.string.download)) { withCatchup(p, ch) { url -> Recorder.download(this, url, ch.name, p.title); status.status(getString(R.string.downloading, p.title)) } }
+		if (catchupState(p, ch, now)) actions += RowAction(getString(R.string.download)) { withCatchup(p, ch) { url -> Recorder.download(this, url, ch.name, p.title, expectMs = p.stop - p.start); status.status(getString(R.string.downloading, p.title)) } }
 		if (!oneChannel) actions += RowAction(getString(R.string.channel_guide)) { startActivity(forChannel(this, ch)) }
 		bindRow(row, speech, { open(p, ch) }, actions)
 	}

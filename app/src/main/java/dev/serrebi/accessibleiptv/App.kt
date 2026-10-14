@@ -89,11 +89,30 @@ class App : Application() {
 		}.also { writeCache(cacheFile(src, section), it) }
 		src.isStalker -> (if (section == LIVE) stalker(src).channels() else emptyList()).also { writeCache(cacheFile(src, section), it) }
 		else -> {
-			val parsed = M3uParser.parse(src.id, readSource(src.url))
+			val text = readSource(src.url)
+			val parsed = M3uParser.parse(src.id, text)
 			val bySection = parsed.groupBy { if (it.kind == Channel.KIND_LIVE) LIVE else if (it.kind == Channel.KIND_MOVIE) MOVIES else SERIES }
+			keepFavorites(cacheFile(src, LIVE), bySection[LIVE].orEmpty())
 			for (s in SECTIONS) writeCache(cacheFile(src, s), bySection[s].orEmpty())
+			// A playlist that names its own guide (x-tvg-url) needs no guide URL typed in.
+			if (src.epgUrl.isBlank()) M3uParser.headerGuides(text).firstOrNull()?.let { g ->
+				prefs.sources = prefs.sources.map { if (it.id == src.id) it.copy(epgUrl = g) else it }
+			}
 			bySection[section].orEmpty()
 		}
+	}
+
+	/**
+	 * Channel ids changed (0.2.5 and older used list position for M3U). Favourites follow
+	 * their channel by stream URL, so nobody has to mark them again.
+	 */
+	private fun keepFavorites(oldCache: File, fresh: List<Channel>) {
+		val favs = prefs.favorites
+		if (favs.isEmpty() || !oldCache.exists()) return
+		val byUrl = fresh.associateBy { it.url }
+		val moved = runCatching { readCache(oldCache) }.getOrDefault(emptyList())
+			.filter { it.key in favs }.mapNotNull { o -> byUrl[o.url]?.let { o.key to it.key } }.toMap()
+		if (moved.any { (a, b) -> a != b }) prefs.favorites = favs.mapTo(HashSet()) { moved[it] ?: it }
 	}
 
 	/** Playlist text from a URL or from a file the user picked (content://). */
@@ -155,6 +174,15 @@ class App : Application() {
 
 	fun channel(key: String) = lists.values.firstNotNullOfOrNull { l -> l.firstOrNull { it.key == key } }
 
+	/**
+	 * [channel], loading [section] from its cache first when the process is new. Android
+	 * restores a guide or episode screen after killing the app; the lists are empty then.
+	 */
+	suspend fun findChannel(key: String, section: String): Channel? {
+		channel(key)?.let { return it }
+		if (!isLoaded(section)) load(section, force = false)
+		return channel(key)
+	}
 	fun source(id: String) = prefs.sources.firstOrNull { it.id == id }
 
 	private fun stalker(src: Source) = stalkers.getOrPut(src.id) { Stalker(src) }
@@ -180,7 +208,43 @@ class App : Application() {
 
 	fun episodes(show: Channel): List<Channel> = source(show.sourceId)?.let { Xtream.episodes(it, show) }.orEmpty()
 
-	fun accountInfo(src: Source): List<Pair<String, String>> = if (src.isStalker) stalker(src).accountInfo() else Xtream.accountInfo(src)
+	fun accountInfo(src: Source): List<Pair<String, String>> = when {
+		src.isStalker -> stalker(src).accountInfo()
+		src.isXtream -> Xtream.accountInfo(src)
+		else -> xtreamBehind(src)?.let { Xtream.accountInfo(it) }.orEmpty()
+	}
+
+	companion object {
+		const val LIVE = "live"
+		const val MOVIES = "movies"
+		const val SERIES = "series"
+		val SECTIONS = listOf(LIVE, MOVIES, SERIES)
+		const val ALL = "All"
+		const val FAVORITES = "Favorites"
+		fun of(c: Context) = c.applicationContext as App
+
+		/** An M3U link from an Xtream panel (get.php?username=...) has an account behind it. */
+		fun xtreamBehind(src: Source): Source? = if (src.isXtream || src.isStalker) null
+		else Xtream.credentialsFromUrl(src.url)?.let { (server, u, p) -> src.copy(type = Source.TYPE_XTREAM, url = server, username = u, password = p) }
+
+		/** Port of the desktop's search_rank; sortedBy is stable, so ties keep playlist order. */
+		fun searchRanked(list: List<Channel>, q: String): List<Channel> {
+			val query = q.trim().lowercase()
+			if (query.isEmpty()) return list
+			return list.filter { it.name.contains(query, ignoreCase = true) }.sortedWith(compareBy({ rank(it.name, query) }, { it.name.trim().length }))
+		}
+
+		private fun rank(name: String, query: String): Int {
+			val n = name.trim().lowercase()
+			if (n == query) return 0
+			var i = n.indexOf(query)
+			while (i >= 0) {
+				if (i == 0 || !n[i - 1].isLetterOrDigit()) return 1
+				i = n.indexOf(query, i + 1)
+			}
+			return 2
+		}
+	}
 
 	suspend fun importGuide(progress: (Int) -> Unit): Int = withContext(Dispatchers.IO) {
 		val urls = prefs.sources.map { it.effectiveEpgUrl }.filter { it.isNotBlank() }.distinct()
@@ -202,13 +266,4 @@ class App : Application() {
 	fun guideStale(): Boolean =
 		channels.isNotEmpty() && (!epg.hasGuide || System.currentTimeMillis() - prefs.lastEpgImport > 86_400_000L || guideFingerprint() != prefs.guideFingerprint)
 
-	companion object {
-		const val LIVE = "live"
-		const val MOVIES = "movies"
-		const val SERIES = "series"
-		val SECTIONS = listOf(LIVE, MOVIES, SERIES)
-		const val ALL = "All"
-		const val FAVORITES = "Favorites"
-		fun of(c: Context) = c.applicationContext as App
-	}
 }

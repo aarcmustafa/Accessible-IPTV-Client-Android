@@ -12,17 +12,16 @@ import kotlinx.coroutines.withContext
 class EpisodesActivity : ListScreen() {
 	private lateinit var adapter: RowAdapter<Channel>
 	private var all: List<Channel> = emptyList()
+	private var showName = ""
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		val show = app.channel(intent.getStringExtra("key").orEmpty()) ?: return finish()
-		title = show.name
 		adapter = RowAdapter { ep, row, l1, _ ->
 			l1.text = ep.name
 			val actions = mutableListOf(
 				RowAction(getString(R.string.play_external)) { Player.open(this, ep, status, external = true) },
 				RowAction(getString(R.string.download)) {
-					Recorder.download(this, ep.url, show.name, ep.name)
+					Recorder.download(this, ep.url, showName, ep.name)
 					status.status(getString(R.string.downloading, ep.name))
 				},
 			)
@@ -33,6 +32,10 @@ class EpisodesActivity : ListScreen() {
 		enableFilter { q -> show(q) }
 		status.status(getString(R.string.loading))
 		lifecycleScope.launch {
+			// After Android killed the app, the restored screen has to load the series list again.
+			val show = app.findChannel(intent.getStringExtra("key").orEmpty(), App.SERIES) ?: return@launch finish()
+			title = show.name
+			showName = show.name
 			val result = withContext(Dispatchers.IO) { runCatching { app.episodes(show) } }
 			all = result.getOrDefault(emptyList())
 			show("")

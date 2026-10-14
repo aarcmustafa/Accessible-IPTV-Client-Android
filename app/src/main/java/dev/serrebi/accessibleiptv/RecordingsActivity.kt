@@ -6,9 +6,10 @@ import android.os.Bundle
 import android.provider.MediaStore
 import androidx.appcompat.app.AlertDialog
 
-/** Scheduled recordings first, then saved files in Movies/AccessibleIPTV. */
+/** Recordings in progress first (each with Stop), then scheduled ones, then saved files in Movies/AccessibleIPTV. */
 class RecordingsActivity : ListScreen() {
 	private sealed interface Item
+	private data class Now(val a: Recorder.Active) : Item
 	private data class Sched(val s: Recorder.Scheduled) : Item
 	private data class Saved(val uri: Uri, val name: String, val added: Long) : Item
 
@@ -23,6 +24,12 @@ class RecordingsActivity : ListScreen() {
 		}
 		adapter = RowAdapter { item, row, l1, l2 ->
 			when (item) {
+				is Now -> {
+					l1.text = item.a.label
+					l2.text = if (item.a.end > 0) getString(R.string.recording_until, Format.time(item.a.end)) else getString(R.string.recording_now)
+					val stop = { Recorder.stop(this, item.a.key); status.status(getString(R.string.recording_stopped, item.a.label)); list.postDelayed({ refresh() }, 500); Unit }
+					bindRow(row, "${l1.text}, ${l2.text}", stop, listOf(RowAction(getString(R.string.stop_recording)) { stop() }))
+				}
 				is Sched -> {
 					l1.text = listOf(item.s.title, item.s.name).filter { it.isNotBlank() }.joinToString(", ")
 					l2.text = getString(R.string.scheduled_for, Format.dateTime(item.s.start), Format.time(item.s.end))
@@ -45,9 +52,11 @@ class RecordingsActivity : ListScreen() {
 	}
 
 	private fun refresh() {
-		val items = Recorder.scheduled(this).map { Sched(it) } + saved()
-		adapter.submit(items)
-		heading.text = getString(R.string.recordings_heading, Recorder.scheduled(this).size, items.size - Recorder.scheduled(this).size)
+		val now = Recorder.active.values.sortedBy { it.started }.map { Now(it) }
+		val sched = Recorder.scheduled(this).map { Sched(it) }
+		val files = saved()
+		adapter.submit(now + sched + files)
+		heading.text = getString(R.string.recordings_heading, now.size, sched.size, files.size)
 	}
 
 	private fun saved(): List<Saved> {

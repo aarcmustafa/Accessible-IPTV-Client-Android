@@ -131,10 +131,10 @@ class MainActivity : AppCompatActivity() {
 
 	private fun bindChannel(ch: Channel, row: View, l1: TextView, l2: TextView) {
 		val fav = ch.key in app.prefs.favorites
-		val nn = if (ch.isLive) app.epg.nowNext(ch) else emptyList()
+		val nn = if (ch.isLive) app.epg.nowNext(ch).now else null
 		l1.text = if (fav) getString(R.string.favorite_name, ch.name) else ch.name
 		// Just what is on and until when; next and the description are under Details.
-		val now = nn.firstOrNull()?.let { getString(R.string.until, it.title, Format.time(it.stop)) }
+		val now = nn?.let { getString(R.string.until, it.title, Format.time(it.stop)) }
 		// While searching, results come from every group: say which when there is no guide.
 		l2.text = now ?: if (search.text.isNotEmpty()) ch.group else ""
 		val speech = Format.sentences(listOfNotNull(
@@ -157,8 +157,11 @@ class MainActivity : AppCompatActivity() {
 		out += RowAction(getString(R.string.programme_details)) { alert(ch.name, detailsText(ch)) }
 		if (ch.isLive) {
 			out += RowAction(getString(if (ch.hasCatchup) R.string.guide_and_catchup else R.string.channel_guide)) { startActivity(ProgrammesActivity.forChannel(this, ch)) }
-			out += RowAction(getString(R.string.record_now)) {
-				Recorder.start(this, ch, app.epg.nowNext(ch).firstOrNull()?.title.orEmpty())
+			out += if (Recorder.isRecording(ch.key)) RowAction(getString(R.string.stop_recording_channel)) {
+				Recorder.stop(this, ch.key)
+				status.status(getString(R.string.recording_stopped, ch.name))
+			} else RowAction(getString(R.string.record_now)) {
+				Recorder.start(this, ch, app.epg.nowNext(ch).now?.title.orEmpty())
 				status.status(getString(R.string.recording_channel, ch.name))
 			}
 		} else if (ch.kind == Channel.KIND_MOVIE || ch.kind == Channel.KIND_EPISODE) {
@@ -174,9 +177,9 @@ class MainActivity : AppCompatActivity() {
 		val lines = ArrayList<String>()
 		if (ch.isLive) {
 			val nn = app.epg.nowNext(ch)
-			if (nn.isEmpty()) lines += getString(R.string.no_guide_for, ch.name)
-			nn.getOrNull(0)?.let { lines += getString(R.string.now_programme, Format.programme(it)); if (it.description.isNotBlank()) lines += it.description }
-			nn.getOrNull(1)?.let { lines += getString(R.string.next_programme, Format.programme(it)) }
+			if (nn.isEmpty) lines += getString(R.string.no_guide_for, ch.name)
+			nn.now?.let { lines += getString(R.string.now_programme, Format.programme(it)); if (it.description.isNotBlank()) lines += it.description }
+			nn.next?.let { lines += getString(R.string.next_programme, Format.programme(it)) }
 		} else {
 			lines += ch.group
 			ch.attrs["plot"]?.takeIf { it.isNotBlank() }?.let { lines += it }
@@ -243,7 +246,7 @@ class MainActivity : AppCompatActivity() {
 		lifecycleScope.launch {
 			val list = withContext(Dispatchers.Default) {
 				// Search covers every group in the section; otherwise show the chosen group.
-				if (q.isEmpty()) app.channelsIn(section, group) else app.list(section).filter { it.name.contains(q, ignoreCase = true) }
+				if (q.isEmpty()) app.channelsIn(section, group) else App.searchRanked(app.list(section), q)
 			}
 			channelAdapter.submit(list)
 			findViewById<RecyclerView>(R.id.channels).contentDescription = sectionName()
@@ -268,6 +271,9 @@ class MainActivity : AppCompatActivity() {
 
 	private fun showMore(anchor: View) {
 		val items = listOf(
+			getString(R.string.previous_channel) to { playPrevious() },
+			getString(R.string.recently_watched) to { showRecent() },
+			getString(R.string.go_to_number) to { askNumber() },
 			getString(R.string.refresh_playlists) to { load(force = true, all = true) },
 			getString(R.string.import_guide) to { importGuide(manual = true) },
 			getString(R.string.account_info) to { showAccountInfo() },
@@ -279,6 +285,71 @@ class MainActivity : AppCompatActivity() {
 			items.forEachIndexed { i, (label, _) -> menu.add(0, i, i, label) }
 			setOnMenuItemClickListener { items[it.itemId].second(); true }
 		}.show()
+	}
+
+	private fun recentChannels() = app.prefs.recent.mapNotNull { app.channel(it) }
+
+	/** Desktop "Previous Channel": the live channel watched before the last one. */
+	private fun playPrevious() {
+		val prev = recentChannels().getOrNull(1) ?: return status.status(getString(R.string.no_previous))
+		Player.open(this, prev, status)
+	}
+
+	private fun showRecent() {
+		val recent = recentChannels()
+		if (recent.isEmpty()) return status.status(getString(R.string.no_recent))
+		AlertDialog.Builder(this).setTitle(R.string.recently_watched)
+			.setItems(recent.map { it.name }.toTypedArray()) { _, i -> Player.open(this, recent[i], status) }
+			.setNegativeButton(android.R.string.cancel, null).show()
+	}
+
+	/** Desktop "Go to Channel Number": the provider's number, else the nth live channel. */
+	private fun askNumber() {
+		val label = TextView(this).apply { setText(R.string.channel_number); id = View.generateViewId() }
+		val field = EditText(this).apply {
+			id = View.generateViewId()
+			inputType = android.text.InputType.TYPE_CLASS_NUMBER
+			setSingleLine()
+		}
+		label.labelFor = field.id
+		val box = android.widget.LinearLayout(this).apply {
+			orientation = android.widget.LinearLayout.VERTICAL
+			setPadding(48, 16, 48, 0)
+			addView(label); addView(field)
+		}
+		val d = AlertDialog.Builder(this).setTitle(R.string.go_to_number).setView(box)
+			.setPositiveButton(R.string.play, null).setNegativeButton(android.R.string.cancel, null).create()
+		d.setOnShowListener {
+			d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+				val ch = Channel.byNumber(app.channels, field.text.toString())
+				if (ch == null) {
+					field.error = getString(R.string.number_not_found, field.text.toString().trim())
+					field.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
+				} else { d.dismiss(); Player.open(this, ch, status) }
+			}
+		}
+		d.show()
+	}
+
+	// Number keys on a remote or keyboard jump to a channel, like a TV: typed digits wait 1.5 s for more.
+	private val digits = StringBuilder()
+	private val jump = Runnable {
+		val n = digits.toString()
+		digits.setLength(0)
+		Channel.byNumber(app.channels, n)?.let { Player.open(this, it, status) } ?: status.status(getString(R.string.number_not_found, n))
+	}
+
+	override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
+		if (currentFocus is EditText) return super.onKeyUp(keyCode, event)
+		if (keyCode in android.view.KeyEvent.KEYCODE_0..android.view.KeyEvent.KEYCODE_9 && digits.length < 6) {
+			digits.append(keyCode - android.view.KeyEvent.KEYCODE_0)
+			status.status(getString(R.string.channel_typed, digits))
+			status.removeCallbacks(jump)
+			status.postDelayed(jump, 1_500)
+			return true
+		}
+		if (keyCode == android.view.KeyEvent.KEYCODE_LAST_CHANNEL) { playPrevious(); return true }
+		return super.onKeyUp(keyCode, event)
 	}
 
 	private fun checkUpdates(quiet: Boolean) {
@@ -312,7 +383,7 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	private fun showAccountInfo() {
-		val sources = app.prefs.sources.filter { it.isXtream || it.isStalker }
+		val sources = app.prefs.sources.filter { it.isXtream || it.isStalker || App.xtreamBehind(it) != null }
 		if (sources.isEmpty()) { alert(getString(R.string.account_info), getString(R.string.account_info_none)); return }
 		status.status(getString(R.string.loading))
 		lifecycleScope.launch {

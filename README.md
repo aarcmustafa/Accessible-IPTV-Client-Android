@@ -19,7 +19,12 @@ This is the Android companion to [Accessible IPTV Client](https://github.com/ser
 - Catch-up playback for channels with an archive (Xtream timeshift and M3U catch-up templates, the same rules as the desktop app).
 - Built-in player with always-visible controls and a full screen mode. It picks an audio description track when a channel has one, in the wording providers actually use, and remembers a track you choose per channel.
 - Casts to Chromecast and Google TV, or hands any stream to another player app.
-- Record now, schedule recordings from the guide, and download movies, episodes, and catch-up programmes. Scheduled recordings survive a restart.
+- Record now, schedule recordings from the guide, and download movies, episodes, and catch-up programmes. Scheduled recordings run 2 minutes past the end (both paddings are adjustable) and survive a restart. Recordings in progress are listed first, each with Stop. A live recording rides out network drops, and a catch-up download that ends early is fetched again.
+- Previous channel, Recently watched, and Go to channel number; on a remote, the number keys jump straight to a channel.
+- A dropped live stream reconnects by itself.
+- Subtitles shown under the video and spoken by your screen reader. The player says when the programme changes; Settings > Announcements sets how much it says.
+- Export and import every setting, playlist, and favourite as one file.
+- 14 languages: English, Spanish, Arabic, Portuguese (Brazilian), French, German, Russian, Turkish, Italian, Polish, Hindi, Chinese (Simplified), Japanese, and Hungarian. On Android 13 and later, **Settings > Language** picks one for this app only.
 - Account info for Xtream and Stalker: expiry, trial, and connections.
 - Built-in updater that pulls new versions from GitHub Releases and verifies the SHA-256 before installing.
 - An offline Help screen, with headings for quick navigation.

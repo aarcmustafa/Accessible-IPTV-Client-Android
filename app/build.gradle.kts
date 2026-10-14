@@ -14,12 +14,24 @@ android {
 		applicationId = "dev.serrebi.accessibleiptv"
 		minSdk = libs.versions.android.minSdk.get().toInt()
 		targetSdk = libs.versions.android.targetSdk.get().toInt()
-		versionCode = 7
-		versionName = "0.2.5"
+		versionCode = 8
+		versionName = "0.2.6"
 	}
 
 	buildFeatures {
 		buildConfig = true
+	}
+
+	// Android 13+ per-app language picker (desktop: Options, Language) lists every translated locale.
+	androidResources {
+		generateLocaleConfig = true
+	}
+
+	// Robolectric runs the Android-side tests (SQLite guide, JSON cache, screens) on the JVM.
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+		// Robolectric's SDK 36 sandbox reaches into FileDescriptor internals; JDK 21 closes them by default.
+		unitTests.all { it.jvmArgs("--add-opens=java.base/jdk.internal.access=ALL-UNNAMED") }
 	}
 
 	buildTypes {
@@ -46,4 +58,5 @@ dependencies {
 	implementation(libs.media3.cast)
 	implementation(libs.androidx.mediarouter)
 	testImplementation(libs.junit)
+	testImplementation(libs.robolectric)
 }

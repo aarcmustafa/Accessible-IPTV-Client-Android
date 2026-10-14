@@ -45,6 +45,8 @@ object Catchup {
 		if (tokens.any { it.first in source }) {
 			var expanded = source
 			for ((t, kind) in tokens) expanded = expanded.replace(t, value(kind, start, end, nowMs, zone))
+			// catchup="default": the template is the whole archive URL, not a tail for the live one.
+			if (expanded.startsWith("http://", true) || expanded.startsWith("https://", true)) return expanded + headerTail
 			if ('?' in base && expanded.startsWith("?")) expanded = "&" + expanded.substring(1)
 			return base + expanded + headerTail
 		}

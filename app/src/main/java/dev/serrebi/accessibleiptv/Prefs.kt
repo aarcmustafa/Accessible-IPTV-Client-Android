@@ -72,6 +72,69 @@ class Prefs(context: Context) {
 		get() = sp.getString("lastGroup", "")!!
 		set(v) = sp.edit { putString("lastGroup", v) }
 
+	/** Minutes a scheduled recording starts early and runs late (desktop: 0 and 2). */
+	var prePadMinutes: Int
+		get() = sp.getInt("prePad", 0)
+		set(v) = sp.edit { putInt("prePad", v) }
+
+	var postPadMinutes: Int
+		get() = sp.getInt("postPad", 2)
+		set(v) = sp.edit { putInt("postPad", v) }
+
+	/** Desktop "Automatic Announcements": 0 none, 1 errors only, 2 important events, 3 detailed status. */
+	var announceLevel: Int
+		get() = sp.getInt("announceLevel", 2)
+		set(v) = sp.edit { putInt("announceLevel", v) }
+
+	/** Subtitle text is spoken as it appears (a polite live region), like the desktop's subtitle speech. */
+	var speakSubtitles: Boolean
+		get() = sp.getBoolean("speakSubtitles", true)
+		set(v) = sp.edit { putBoolean("speakSubtitles", v) }
+
+	/** Live channels played, newest first; [0] is the one on now, [1] the previous channel. */
+	var recent: List<String>
+		get() = JSONArray(sp.getString("recent", "[]")).let { a -> List(a.length()) { a.getString(it) } }
+		set(v) = sp.edit { putString("recent", JSONArray(v).toString()) }
+
+	fun addRecent(key: String) {
+		recent = (listOf(key) + recent.filter { it != key }).take(20)
+	}
+
+	/** Every setting, source and favourite as JSON, for Export settings. Typed so Import restores ints as ints. */
+	fun export(): JSONObject {
+		val out = JSONObject()
+		for ((k, v) in sp.all) out.put(k, when (v) {
+			is String -> JSONObject().put("s", v)
+			is Boolean -> JSONObject().put("b", v)
+			is Int -> JSONObject().put("i", v)
+			is Long -> JSONObject().put("l", v)
+			is Float -> JSONObject().put("f", v.toDouble())
+			is Set<*> -> JSONObject().put("set", JSONArray(v.toList()))
+			else -> continue
+		})
+		return JSONObject().put("app", "AccessibleIPTV-Android").put("settings", out)
+	}
+
+	/** Replaces every setting with an [export]. Throws on a file that is not one. */
+	fun import(o: JSONObject) {
+		require(o.optString("app") == "AccessibleIPTV-Android") { "Not a settings file" }
+		val all = o.getJSONObject("settings")
+		sp.edit {
+			clear()
+			for (k in all.keys()) {
+				val v = all.getJSONObject(k)
+				when {
+					v.has("s") -> putString(k, v.getString("s"))
+					v.has("b") -> putBoolean(k, v.getBoolean("b"))
+					v.has("i") -> putInt(k, v.getInt("i"))
+					v.has("l") -> putLong(k, v.getLong("l"))
+					v.has("f") -> putFloat(k, v.getDouble("f").toFloat())
+					v.has("set") -> v.getJSONArray("set").let { a -> putStringSet(k, (0 until a.length()).mapTo(HashSet()) { a.getString(it) }) }
+				}
+			}
+		}
+	}
+
 	private val tracks get() = JSONObject(sp.getString("channelTracks", "{}")!!)
 
 	/** Track name picked by hand on a channel; comes back ahead of every other rule. */

@@ -68,7 +68,10 @@ data class Channel(
 	val catchupDays: Int
 		get() = (attrs["catchup-days"] ?: attrs["timeshift"])?.toDoubleOrNull()?.toInt() ?: 0
 
-	val hasCatchup get() = !attrs["catchup"].isNullOrBlank() || !attrs["catchup-source"].isNullOrBlank() || catchupDays > 0
+	/** The provider's channel number (M3U tvg-chno, Xtream num, Stalker number), or "". */
+	val number: String get() = attrs[CHNO].orEmpty()
+
+	val hasCatchup get() =!attrs["catchup"].isNullOrBlank() || !attrs["catchup-source"].isNullOrBlank() || catchupDays > 0
 
 	fun toJson(): JSONObject {
 		val o = JSONObject().put("s", sourceId).put("i", id).put("n", name).put("g", group).put("u", url).put("k", kind)
@@ -93,6 +96,13 @@ data class Channel(
 		const val KIND_SERIES = "series" // a show; its episodes come from the provider on demand
 		const val KIND_EPISODE = "episode"
 		const val STALKER_SCHEME = "stalker:"
+		const val CHNO = "tvg-chno"
+
+		/** "Go to channel number": the provider's number first, else the [n]th entry, like the desktop. */
+		fun byNumber(list: List<Channel>, n: String): Channel? {
+			val num = n.trim().toIntOrNull()?.takeIf { it > 0 } ?: return null
+			return list.firstOrNull { it.number.toIntOrNull() == num } ?: list.getOrNull(num - 1)
+		}
 	}
 }
 

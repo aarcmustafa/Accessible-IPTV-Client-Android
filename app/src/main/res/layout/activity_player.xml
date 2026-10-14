@@ -16,6 +16,18 @@
 		android:importantForAccessibility="no"
 		app:use_controller="false" />
 
+	<!-- Subtitle text for everyone; a polite live region so TalkBack reads each line (desktop subtitle speech). -->
+	<TextView
+		android:id="@+id/subtitles"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:accessibilityLiveRegion="polite"
+		android:gravity="center"
+		android:paddingHorizontal="12dp"
+		android:textColor="@android:color/white"
+		android:textSize="18sp"
+		android:visibility="gone" />
+
 	<TextView
 		android:id="@+id/nowPlaying"
 		android:layout_width="match_parent"
@@ -32,19 +44,30 @@
 		android:paddingHorizontal="12dp"
 		android:textColor="@android:color/white" />
 
-	<LinearLayout
+	<!-- Scrolls sideways on a narrow phone; D-pad and TalkBack bring hidden buttons into view. -->
+	<HorizontalScrollView
 		android:id="@+id/controls"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
+		android:fillViewport="true"
+		android:focusable="false"
+		android:descendantFocusability="afterDescendants">
+
+	<LinearLayout
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_gravity="center_horizontal"
 		android:gravity="center"
 		android:orientation="horizontal"
 		android:padding="6dp">
 
 		<Button android:id="@+id/btnPause" style="@style/BarButton" android:text="@string/pause" />
 		<Button android:id="@+id/btnAudio" style="@style/BarButton" android:text="@string/audio_track" />
+		<Button android:id="@+id/btnSubs" style="@style/BarButton" android:text="@string/subtitles" />
 		<Button android:id="@+id/btnRecord" style="@style/BarButton" android:text="@string/record" />
 		<Button android:id="@+id/btnCast" style="@style/BarButton" android:text="@string/cast" />
 		<Button android:id="@+id/btnFull" style="@style/BarButton" android:text="@string/full_screen" />
 		<Button android:id="@+id/btnClose" style="@style/BarButton" android:text="@string/close" />
 	</LinearLayout>
+	</HorizontalScrollView>
 </LinearLayout>

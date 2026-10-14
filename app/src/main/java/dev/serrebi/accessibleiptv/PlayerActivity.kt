@@ -46,6 +46,8 @@ object Player {
 	/** Plays any list entry: shows open their episode list; Stalker links are fetched first. */
 	fun open(a: AppCompatActivity, ch: Channel, status: TextView? = null, external: Boolean = false) {
 		if (ch.kind == Channel.KIND_SERIES) return a.startActivity(EpisodesActivity.intent(a, ch))
+		// Recently watched / Previous channel: live channels only, as on the desktop.
+		if (ch.isLive) App.of(a).prefs.addRecent(ch.key)
 		if (!ch.needsResolve) return if (external) openExternal(a, ch.url, ch.name) else play(a, ch.url, ch.name, ch.key)
 		status?.status(a.getString(R.string.connecting))
 		a.lifecycleScope.launch {
@@ -91,6 +93,19 @@ class PlayerActivity : AppCompatActivity() {
 	private lateinit var video: PlayerView
 	private var localFile = false
 	private var fullscreen = false
+	/** A live channel (not catch-up, a file or VOD): drops are reconnected like the desktop. */
+	private var live = false
+	private val reconnect = Reconnect(android.os.SystemClock::elapsedRealtime)
+	private val retry = android.os.Handler(android.os.Looper.getMainLooper())
+
+	/** Debug builds: buffer depth every 2 s, to tell a slow feed (drains bit by bit) from a delivery gap (drains at once). */
+	private val heartbeat: Runnable = object : Runnable {
+		override fun run() {
+			android.util.Log.i("AiptvPlayer", "beat state=${exo.playbackState} playing=${exo.isPlaying} bufferedMs=${exo.totalBufferedDuration} cushionMs=${cushion.targetUs / 1000}")
+			retry.postDelayed(this, 2_000)
+		}
+	}
+	private var pausedByStop = false
 
 	// Back in full screen brings the controls back instead of closing the player.
 	private val exitFullscreenOnBack = object : OnBackPressedCallback(false) {
@@ -110,8 +125,10 @@ class PlayerActivity : AppCompatActivity() {
 		pause = findViewById(R.id.btnPause)
 
 		val ch = app.channel(channelKey)
-		findViewById<TextView>(R.id.nowPlaying).text = if (catchup || ch == null) name
-		else app.epg.nowNext(ch).firstOrNull()?.let { Format.sentences(listOf(name, getString(R.string.now_programme, Format.programme(it)))) } ?: name
+		live = !catchup && ch?.isLive == true
+		channelName = name
+		subtitles = findViewById(R.id.subtitles)
+		showProgramme(announce = false)
 
 		val (plain, headers) = M3uParser.splitHeaders(url)
 		val http = DefaultHttpDataSource.Factory()
@@ -147,52 +164,81 @@ class PlayerActivity : AppCompatActivity() {
 		player.addListener(listener)
 		player.prepare()
 		player.playWhenReady = true
-		status.status(getString(R.string.connecting))
+		if (BuildConfig.DEBUG) heartbeat.run()
+		say(getString(R.string.connecting), 2)
 
-		pause.setOnClickListener { if (player.isPlaying) player.pause() else { if (player.playbackState == M3Player.STATE_IDLE) player.prepare(); player.play() } }
+		pause.setOnClickListener {
+			if (player.isPlaying) player.pause()
+			else {
+				if (player.playbackState == M3Player.STATE_IDLE || player.playbackState == M3Player.STATE_ENDED) {
+					// Retry after a failure: a live stream starts again at the live edge.
+					retry.removeCallbacksAndMessages(null)
+					reconnect.reset()
+					if (live) player.seekToDefaultPosition()
+					player.prepare()
+				}
+				player.play()
+			}
+		}
 		castButton = findViewById(R.id.btnCast)
 		castButton.setOnClickListener { cast() }
 		findViewById<Button>(R.id.btnAudio).setOnClickListener { chooseAudio() }
+		findViewById<Button>(R.id.btnSubs).setOnClickListener { chooseSubtitles() }
+		// Our own subtitle line replaces PlayerView's, so the text is shown once and can be spoken.
+		video.subtitleView?.visibility = View.GONE
 		findViewById<Button>(R.id.btnRecord).setOnClickListener {
 			val c = app.channel(channelKey)
-			if (c == null || catchup) status.status(getString(R.string.cannot_record_this))
-			else { Recorder.start(this, c, app.epg.nowNext(c).firstOrNull()?.title.orEmpty()); status.status(getString(R.string.recording_channel, c.name)) }
+			if (c == null || catchup) say(getString(R.string.cannot_record_this), 1)
+			else { Recorder.start(this, c, app.epg.nowNext(c).now?.title.orEmpty()); say(getString(R.string.recording_channel, c.name), 2) }
 		}
 		findViewById<Button>(R.id.btnFull).setOnClickListener { setFullscreen(true) }
 		findViewById<Button>(R.id.btnClose).setOnClickListener { finish() }
-		pause.requestFocus()
+		// After layout: inside the scrolling button bar an early request is dropped and nothing has focus.
+		pause.post { pause.requestFocus() }
 	}
 
 	private val listener = object : M3Player.Listener {
 		override fun onIsPlayingChanged(isPlaying: Boolean) {
 			pause.setText(if (isPlaying) R.string.pause else R.string.play)
-			if (isPlaying) status.status(getString(R.string.playing))
+			if (isPlaying) say(getString(R.string.playing), 3)
 		}
 
 		override fun onPlaybackStateChanged(state: Int) {
 			// One line per change: lets stalls be measured from logcat (tag AiptvPlayer).
-			android.util.Log.i("AiptvPlayer", "state=$state cushionMs=${cushion.targetUs / 1000}")
+			android.util.Log.i("AiptvPlayer", "state=$state cushionMs=${cushion.targetUs / 1000} bufferedMs=${exo.totalBufferedDuration}")
 			if (state == M3Player.STATE_READY) hasPlayed = true
+			// A live stream that ends was dropped by the server: reconnect, as the desktop does.
+			if (state == M3Player.STATE_ENDED && tryReconnect()) return
 			if (state == M3Player.STATE_BUFFERING) {
 				// Buffering after playback began is a stall: grow the cushion like the desktop.
 				if (hasPlayed) cushion.onStall()
-				status.status(getString(R.string.buffering))
+				say(getString(R.string.buffering), 3)
 			}
-			if (state == M3Player.STATE_ENDED) status.status(getString(R.string.stream_ended))
+			if (state == M3Player.STATE_ENDED) say(getString(R.string.stream_ended), 1)
 		}
 
 		override fun onPlayerError(error: PlaybackException) {
-			status.status(getString(R.string.play_failed, error.errorCodeName))
+			if (tryReconnect()) return
+			say(getString(R.string.play_failed, error.errorCodeName), 1)
 			pause.setText(R.string.retry)
 		}
 
 		override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
 			val remote = deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE
 			castButton.setText(if (remote) R.string.stop_casting else R.string.cast)
-			status.status(
+			say(
 				if (remote) getString(R.string.casting_to, castContext?.sessionManager?.currentCastSession?.castDevice?.friendlyName.orEmpty())
 				else getString(R.string.cast_stopped),
+				2,
 			)
+		}
+
+		override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
+			val text = cueGroup.cues.mapNotNull { it.text?.toString()?.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
+			subtitles.accessibilityLiveRegion = if (app.prefs.speakSubtitles) View.ACCESSIBILITY_LIVE_REGION_POLITE else View.ACCESSIBILITY_LIVE_REGION_NONE
+			// An empty cue clears the line without a second announcement.
+			if (text.isNotEmpty()) subtitles.text = text
+			subtitles.visibility = if (text.isEmpty()) View.INVISIBLE else View.VISIBLE
 		}
 
 		override fun onTracksChanged(tracks: Tracks) {
@@ -209,6 +255,83 @@ class PlayerActivity : AppCompatActivity() {
 			)
 			if (idx >= 0 && !audio[idx].selected) select(audio[idx])
 		}
+	}
+
+	/**
+	 * A status line, spoken only up to the "Automatic announcements" level in Settings
+	 * (desktop: 1 errors, 2 important events, 3 detailed status). The text always updates.
+	 */
+	private fun say(text: String, priority: Int) {
+		status.accessibilityLiveRegion = if (app.prefs.announceLevel >= priority) View.ACCESSIBILITY_LIVE_REGION_POLITE else View.ACCESSIBILITY_LIVE_REGION_NONE
+		status.text = text
+	}
+
+	private var channelName = ""
+	private lateinit var subtitles: TextView
+	private val programmeTick = Runnable { showProgramme(announce = true) }
+
+	/**
+	 * Shows what is on and, when the guide says the programme changed, says "Now: ..." as an
+	 * important event. Re-arms itself for the end of the programme. Live channels only.
+	 */
+	private fun showProgramme(announce: Boolean) {
+		val nowPlaying = findViewById<TextView>(R.id.nowPlaying)
+		val ch = app.channel(channelKey)?.takeIf { live }
+		val nn = ch?.let { app.epg.nowNext(it) }
+		val on = nn?.now
+		nowPlaying.text = on?.let { Format.sentences(listOf(channelName, getString(R.string.now_programme, Format.programme(it)))) } ?: channelName
+		if (announce && on != null) say(getString(R.string.now_programme, Format.programme(on)), 2)
+		nowPlaying.removeCallbacks(programmeTick)
+		val change = on?.stop ?: nn?.next?.start ?: return
+		nowPlaying.postDelayed(programmeTick, maxOf(1_000, change - System.currentTimeMillis() + 2_000))
+	}
+
+	private class TextTrack(val group: Tracks.Group, val index: Int, val name: String)
+
+	private fun textTracks(): List<TextTrack> = exo.currentTracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }.flatMap { g ->
+		(0 until g.length).map { i ->
+			val f = g.getTrackFormat(i)
+			val name = listOfNotNull(f.label, f.language?.let { java.util.Locale.forLanguageTag(it).displayLanguage.ifEmpty { it } })
+				.distinct().joinToString(", ").ifEmpty { getString(R.string.track_n, i + 1) }
+			TextTrack(g, i, name)
+		}
+	}
+
+	/** Off, or one subtitle track; the chosen text is shown under the video and spoken. */
+	private fun chooseSubtitles() {
+		val tracks = textTracks()
+		if (tracks.isEmpty()) return say(getString(R.string.no_subtitles), 1)
+		val off = exo.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+		val current = if (off) 0 else tracks.indexOfFirst { it.group.isTrackSelected(it.index) } + 1
+		val names = listOf(getString(R.string.subtitles_off)) + tracks.map { it.name }
+		AlertDialog.Builder(this).setTitle(R.string.subtitles)
+			.setSingleChoiceItems(names.toTypedArray(), current) { d, which ->
+				val p = exo.trackSelectionParameters.buildUpon()
+				if (which == 0) {
+					p.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+					subtitles.visibility = View.GONE
+				} else {
+					val t = tracks[which - 1]
+					p.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.index))
+				}
+				exo.trackSelectionParameters = p.build()
+				say(getString(R.string.subtitles_set, names[which]), 2)
+				d.dismiss()
+			}.show()
+	}
+
+	/** Schedules the next reconnect of a live stream; false when this stream does not get one or the budget is spent. */
+	private fun tryReconnect(): Boolean {
+		if (!live || player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return false
+		val delay = reconnect.next() ?: return false
+		say(getString(R.string.reconnecting), 2)
+		retry.postDelayed({
+			// Behind the live window after a drop: start again at the live edge.
+			player.seekToDefaultPosition()
+			player.prepare()
+			player.play()
+		}, delay)
+		return true
 	}
 
 	private fun mimeOf(url: String): String {
@@ -257,8 +380,8 @@ class PlayerActivity : AppCompatActivity() {
 
 
 	private fun cast() {
-		if (localFile) return status.status(getString(R.string.cast_local_file))
-		val ctx = castContext ?: return status.status(getString(R.string.cast_unavailable))
+		if (localFile) return say(getString(R.string.cast_local_file), 1)
+		val ctx = castContext ?: return say(getString(R.string.cast_unavailable), 1)
 		if (player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) ctx.sessionManager.endCurrentSession(true)
 		else MediaRouteChooserDialog(this).apply { routeSelector = ctx.mergedSelector ?: MediaRouteSelector.EMPTY }.show()
 	}
@@ -286,14 +409,14 @@ class PlayerActivity : AppCompatActivity() {
 
 	private fun chooseAudio() {
 		val audio = audioTracks()
-		if (audio.isEmpty()) { status.status(getString(R.string.no_audio_tracks)); return }
+		if (audio.isEmpty()) { say(getString(R.string.no_audio_tracks), 1); return }
 		val current = audio.indexOfFirst { it.selected }
 		AlertDialog.Builder(this).setTitle(R.string.audio_track)
 			.setSingleChoiceItems(audio.map { it.name }.toTypedArray(), current) { d, which ->
 				select(audio[which])
 				// Remembered per channel, ahead of every other rule, like the desktop app.
 				if (channelKey.isNotEmpty()) app.prefs.rememberTrack(channelKey, audio[which].name)
-				status.status(getString(R.string.audio_track_set, audio[which].name))
+				say(getString(R.string.audio_track_set, audio[which].name), 2)
 				d.dismiss()
 			}.show()
 	}
@@ -302,6 +425,7 @@ class PlayerActivity : AppCompatActivity() {
 		// Media keys on remotes and keyboards.
 		KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { pause.performClick(); true }
 		KeyEvent.KEYCODE_A -> { chooseAudio(); true }
+		KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_CAPTIONS -> { chooseSubtitles(); true }
 		KeyEvent.KEYCODE_F -> { setFullscreen(!fullscreen); true }
 		else -> super.onKeyUp(keyCode, event)
 	}
@@ -309,10 +433,24 @@ class PlayerActivity : AppCompatActivity() {
 	override fun onStop() {
 		super.onStop()
 		// Leaving the app stops local playback; a cast session keeps playing on the TV.
-		if (player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE) player.pause()
+		if (player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE && player.playWhenReady) {
+			player.pause()
+			pausedByStop = true
+		}
+	}
+
+	override fun onStart() {
+		super.onStart()
+		// Back in the app: live TV picks up at the live edge, not minutes behind where it stopped.
+		if (!pausedByStop) return
+		pausedByStop = false
+		if (live) player.seekToDefaultPosition()
+		player.play()
 	}
 
 	override fun onDestroy() {
+		retry.removeCallbacksAndMessages(null)
+		findViewById<View>(R.id.nowPlaying).removeCallbacks(programmeTick)
 		player.release() // releases the wrapped local player too
 		super.onDestroy()
 	}

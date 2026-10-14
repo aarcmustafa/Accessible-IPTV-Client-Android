@@ -37,6 +37,26 @@
 			android:minHeight="48dp"
 			android:text="@string/show_stream_url" />
 
+		<CheckBox
+			android:id="@+id/speakSubs"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:minHeight="48dp"
+			android:text="@string/speak_subtitles" />
+
+		<!-- The label is read just before the choices; each choice is a real RadioButton. -->
+		<TextView android:id="@+id/announceLabel" style="@style/FieldLabel" android:text="@string/announcements" />
+		<RadioGroup
+			android:id="@+id/announce"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:orientation="vertical">
+			<RadioButton android:id="@+id/announce0" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/announce_none" />
+			<RadioButton android:id="@+id/announce1" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/announce_errors" />
+			<RadioButton android:id="@+id/announce2" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/announce_important" />
+			<RadioButton android:id="@+id/announce3" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/announce_detailed" />
+		</RadioGroup>
+
 		<TextView style="@style/FieldLabel" android:labelFor="@+id/buffer" android:text="@string/buffer_seconds" />
 		<EditText android:id="@+id/buffer" style="@style/Field" android:inputType="numberDecimal" />
 
@@ -47,5 +67,25 @@
 
 		<TextView style="@style/FieldLabel" android:labelFor="@+id/days" android:text="@string/guide_days" />
 		<EditText android:id="@+id/days" style="@style/Field" android:inputType="number" />
+
+		<TextView android:id="@+id/hRecordings" style="@style/Heading" android:text="@string/recordings" />
+
+		<TextView style="@style/FieldLabel" android:labelFor="@+id/prePad" android:text="@string/pre_padding" />
+		<EditText android:id="@+id/prePad" style="@style/Field" android:inputType="number" />
+
+		<TextView style="@style/FieldLabel" android:labelFor="@+id/postPad" android:text="@string/post_padding" />
+		<EditText android:id="@+id/postPad" style="@style/Field" android:inputType="number" />
+
+		<TextView android:id="@+id/hBackup" style="@style/Heading" android:text="@string/backup_heading" />
+
+		<Button android:id="@+id/btnLanguage" style="@style/BarButton" android:text="@string/language" />
+		<Button android:id="@+id/btnExport" style="@style/BarButton" android:text="@string/export_settings" />
+		<Button android:id="@+id/btnImport" style="@style/BarButton" android:text="@string/import_settings" />
+
+		<TextView
+			android:id="@+id/settingsStatus"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:accessibilityLiveRegion="polite" />
 	</LinearLayout>
 </ScrollView>
