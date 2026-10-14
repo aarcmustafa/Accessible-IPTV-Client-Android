@@ -103,9 +103,9 @@ class CoreTest {
 
 	@Test fun quickStartThenFullCushionAfterAStall() {
 		val c = Cushion(6.0, 8.0)
-		assertFalse(c.shouldStartPlayback(params(1.9, rebuffering = false)))
-		assertTrue("the first start waits only 2 s", c.shouldStartPlayback(params(2.0, rebuffering = false)))
-		assertTrue("never more than the cushion itself", Cushion(1.0, 8.0).shouldStartPlayback(params(1.0, rebuffering = false)))
+		assertFalse(c.shouldStartPlayback(params(0.49, rebuffering = false)))
+		assertTrue("the first start waits only half a second", c.shouldStartPlayback(params(0.5, rebuffering = false)))
+		assertTrue("never more than the cushion itself", Cushion(0.25, 8.0).shouldStartPlayback(params(0.25, rebuffering = false)))
 	}
 
 	@Test fun playsSlowUntilTheCushionIsBuilt() {
@@ -119,9 +119,10 @@ class CoreTest {
 		assertEquals(Cushion.SLOW, c.speedFor(6_500_000, Cushion.SLOW))
 	}
 
-	@Test fun twentyFiveSecondCushionKeepsTheTwoSecondStart() {
+	@Test fun twentyFiveSecondCushionKeepsTheHalfSecondStart() {
 		val c = Cushion(Prefs.DEFAULT_BUFFER.toDouble(), 30.0)
-		assertTrue(c.shouldStartPlayback(params(2.0, rebuffering = false)))
+		assertFalse(c.shouldStartPlayback(params(0.49, rebuffering = false)))
+		assertTrue(c.shouldStartPlayback(params(0.5, rebuffering = false)))
 		assertEquals(Cushion.SLOW, c.speedFor(24_900_000, Cushion.SLOW))
 		assertEquals(1f, c.speedFor(25_000_000, Cushion.SLOW))
 		c.onStall()

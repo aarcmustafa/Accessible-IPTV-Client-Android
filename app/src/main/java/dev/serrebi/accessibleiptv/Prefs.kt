@@ -46,7 +46,7 @@ class Prefs(context: Context) {
 		get() = sp.getBoolean("showStreamUrl", false)
 		set(v) = sp.edit { putBoolean("showStreamUrl", v) }
 
-	/** Live cushion built during playback; first start still needs only 2 s. */
+	/** Live cushion built during playback; first start needs only half a second. */
 	// Historical defaults migrate; other explicit settings are kept for every provider.
 	var bufferSeconds: Double
 		get() = sp.getFloat("bufferSeconds", DEFAULT_BUFFER).toDouble().let { if (it == 6.0 || it == 10.0) DEFAULT_BUFFER.toDouble() else it }

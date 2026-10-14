@@ -99,7 +99,7 @@ class PlayerActivity : AppCompatActivity() {
 	private val retry = android.os.Handler(android.os.Looper.getMainLooper())
 
 	/**
-	 * Quick start, then build the cushion: a live stream that started on 2 s plays 5% slow
+	 * Quick start, then build the cushion: a live stream plays 5% slow
 	 * until the full cushion is buffered (Cushion.speedFor), checked once a second.
 	 */
 	private val pace: Runnable = object : Runnable {

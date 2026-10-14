@@ -66,8 +66,8 @@ class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = Q
 		inner.shouldContinuePreloading(playerId, timeline, mediaPeriodId, bufferedDurationUs)
 
 	companion object {
-		/** Seconds buffered before the picture first starts. Dispatcharr sends about 3 s at once. */
-		const val QUICK_START_SECONDS = 2.0
+		/** First-start buffer; the full cushion is built during playback. */
+		const val QUICK_START_SECONDS = 0.5
 
 		// ponytail: fixed 5% slower (pitch kept); 4 s of cushion takes 80 s to build. Tune if it is heard.
 		const val SLOW = 0.95f
