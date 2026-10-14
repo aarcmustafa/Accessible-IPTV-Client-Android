@@ -164,6 +164,8 @@
 	<string name="guide_heading">Guide</string>
 	<string name="guide_days">Guide days ahead (1 to 14)</string>
 	<string name="show_stream_url">Show stream URL</string>
+	<string name="buffer_seconds">Buffer (seconds)</string>
+	<string name="max_buffer_seconds">Maximum buffer (seconds)</string>
 
 	<plurals name="channel_count">
 		<item quantity="one">%d channel</item>

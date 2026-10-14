@@ -37,6 +37,12 @@
 			android:minHeight="48dp"
 			android:text="@string/show_stream_url" />
 
+		<TextView style="@style/FieldLabel" android:labelFor="@+id/buffer" android:text="@string/buffer_seconds" />
+		<EditText android:id="@+id/buffer" style="@style/Field" android:inputType="numberDecimal" />
+
+		<TextView style="@style/FieldLabel" android:labelFor="@+id/maxBuffer" android:text="@string/max_buffer_seconds" />
+		<EditText android:id="@+id/maxBuffer" style="@style/Field" android:inputType="numberDecimal" />
+
 		<TextView android:id="@+id/hGuide" style="@style/Heading" android:text="@string/guide_heading" />
 
 		<TextView style="@style/FieldLabel" android:labelFor="@+id/days" android:text="@string/guide_days" />

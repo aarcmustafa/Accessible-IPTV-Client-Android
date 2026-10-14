@@ -41,6 +41,16 @@ class Prefs(context: Context) {
 		get() = sp.getBoolean("showStreamUrl", false)
 		set(v) = sp.edit { putBoolean("showStreamUrl", v) }
 
+	/** Desktop internal_player_buffer_seconds: seconds buffered before playing and after a stall. */
+	var bufferSeconds: Double
+		get() = sp.getFloat("bufferSeconds", 6f).toDouble()
+		set(v) = sp.edit { putFloat("bufferSeconds", v.toFloat()) }
+
+	/** Desktop internal_player_max_buffer_seconds: ceiling for the +1 s per stall. */
+	var maxBufferSeconds: Double
+		get() = sp.getFloat("maxBufferSeconds", 18f).toDouble()
+		set(v) = sp.edit { putFloat("maxBufferSeconds", v.toFloat()) }
+
 	var epgDaysAhead: Int
 		get() = sp.getInt("epgDaysAhead", 2)
 		set(v) = sp.edit { putInt("epgDaysAhead", v) }

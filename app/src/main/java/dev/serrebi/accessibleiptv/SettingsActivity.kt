@@ -14,6 +14,8 @@ class SettingsActivity : AppCompatActivity() {
 	private lateinit var external: CheckBox
 	private lateinit var showUrl: CheckBox
 	private lateinit var days: EditText
+	private lateinit var buffer: EditText
+	private lateinit var maxBuffer: EditText
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -30,6 +32,10 @@ class SettingsActivity : AppCompatActivity() {
 		keywords.setText(prefs.audioKeywords)
 		external.isChecked = prefs.useExternalPlayer
 		days.setText(prefs.epgDaysAhead.toString())
+		buffer = findViewById(R.id.buffer)
+		maxBuffer = findViewById(R.id.maxBuffer)
+		buffer.setText(plain(prefs.bufferSeconds))
+		maxBuffer.setText(plain(prefs.maxBufferSeconds))
 	}
 
 	override fun onPause() {
@@ -41,5 +47,13 @@ class SettingsActivity : AppCompatActivity() {
 		val d = days.text.toString().toIntOrNull()?.coerceIn(1, 14) ?: 2
 		if (d != prefs.epgDaysAhead) prefs.lastEpgImport = 0 // re-import with the new window
 		prefs.epgDaysAhead = d
+		// Desktop _apply_internal_player_bounds: max in (0, 300], base > 0 and never above max.
+		val max = (maxBuffer.text.toString().toDoubleOrNull() ?: prefs.maxBufferSeconds).let { if (it <= 0) 18.0 else minOf(it, 300.0) }
+		val base = (buffer.text.toString().toDoubleOrNull() ?: prefs.bufferSeconds).let { if (it <= 0) 6.0 else minOf(it, max) }
+		prefs.maxBufferSeconds = max
+		prefs.bufferSeconds = base
 	}
+
+	/** "6" rather than "6.0" in the field. */
+	private fun plain(v: Double) = if (v % 1.0 == 0.0) v.toInt().toString() else v.toString()
 }

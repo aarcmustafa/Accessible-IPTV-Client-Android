@@ -31,7 +31,6 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
@@ -86,6 +85,8 @@ class PlayerActivity : AppCompatActivity() {
 	private lateinit var pause: Button
 	private var channelKey = ""
 	private var autoTrackDone = false
+	private lateinit var cushion: Cushion
+	private var hasPlayed = false
 	private lateinit var castButton: Button
 	private lateinit var video: PlayerView
 	private var localFile = false
@@ -126,14 +127,11 @@ class PlayerActivity : AppCompatActivity() {
 		val extractors = DefaultExtractorsFactory().setTsExtractorFlags(
 			DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES,
 		)
-		// Live streams arrive at real time, so the default 5 s refill after a stall meant constant
-		// buffering. Start and resume sooner; keep up to 30 s when the server sends faster.
-		val buffering = DefaultLoadControl.Builder()
-			.setBufferDurationsMs(15_000, 30_000, 1_500, 2_500)
-			.build()
+		// Same cache as the desktop app: same seconds, same +1 s per stall, same maximum.
+		cushion = Cushion(app.prefs.bufferSeconds, app.prefs.maxBufferSeconds)
 		exo = ExoPlayer.Builder(this)
 			.setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http), extractors))
-			.setLoadControl(buffering)
+			.setLoadControl(cushion)
 			.build()
 		localFile = plain.startsWith("content://")
 		// Devices without Google Play services (many TVs) have no Cast framework: play locally only.
@@ -172,7 +170,14 @@ class PlayerActivity : AppCompatActivity() {
 		}
 
 		override fun onPlaybackStateChanged(state: Int) {
-			if (state == M3Player.STATE_BUFFERING) status.status(getString(R.string.buffering))
+			// One line per change: lets stalls be measured from logcat (tag AiptvPlayer).
+			android.util.Log.i("AiptvPlayer", "state=$state cushionMs=${cushion.targetUs / 1000}")
+			if (state == M3Player.STATE_READY) hasPlayed = true
+			if (state == M3Player.STATE_BUFFERING) {
+				// Buffering after playback began is a stall: grow the cushion like the desktop.
+				if (hasPlayed) cushion.onStall()
+				status.status(getString(R.string.buffering))
+			}
 			if (state == M3Player.STATE_ENDED) status.status(getString(R.string.stream_ended))
 		}
 

@@ -95,6 +95,30 @@ class CoreTest {
 		assertFalse(Updater.isNewer("0.1.9", "0.2"))
 	}
 
+	private fun params(bufferedSec: Double) = androidx.media3.exoplayer.LoadControl.Parameters(
+		androidx.media3.exoplayer.analytics.PlayerId.UNSET, androidx.media3.common.Timeline.EMPTY,
+		androidx.media3.exoplayer.source.MediaSource.MediaPeriodId(Any()), 0, (bufferedSec * 1_000_000).toLong(),
+		1f, true, false, androidx.media3.common.C.TIME_UNSET, androidx.media3.common.C.TIME_UNSET,
+	)
+
+	@Test fun cushionMatchesDesktopCache() {
+		val c = Cushion(6.0, 8.0)
+		assertFalse(c.shouldStartPlayback(params(5.9)))
+		assertTrue(c.shouldStartPlayback(params(6.0)))
+		c.onStall() // 7 s
+		assertFalse(c.shouldStartPlayback(params(6.5)))
+		assertTrue(c.shouldStartPlayback(params(7.0)))
+		c.onStall(); c.onStall() // capped at 8 s
+		assertTrue(c.shouldStartPlayback(params(8.0)))
+		assertEquals(8_000_000L, c.targetUs)
+		// The calls ExoPlayer makes while building the player must not hit LoadControl's
+		// throwing defaults (crashed the player on open).
+		val id = androidx.media3.exoplayer.analytics.PlayerId.UNSET
+		c.onPrepared(id) // ExoPlayer calls this first
+		c.getBackBufferDurationUs(id); c.retainBackBufferFromKeyframe(id); c.getAllocator(id)
+		c.onStopped(id); c.onReleased(id)
+	}
+
 	@Test fun nameKeyIgnoresPrefixAndQuality() {
 		assertEquals(Xmltv.nameKey("BBC One"), Xmltv.nameKey("UK: BBC One HD"))
 	}
