@@ -73,11 +73,15 @@ object Xtream {
 	 * Providers often title episodes "Show Name - S01E02"; after the season and episode
 	 * are spoken, that is pure repetition. Keeps only a real episode title, else "".
 	 */
+	// Compiled once: each Regex holds native ICU memory until a GC finalizes it.
+	private val yearSuffix = Regex("\\s*\\(\\d{4}\\)\\s*$")
+	private val seasonEpisode = Regex("(?i)\\bS\\d{1,3}\\s*E\\d{1,4}\\b")
+
 	fun episodeTitle(raw: String, show: String): String {
 		var t = raw.trim()
-		val showBase = show.replace(Regex("\\s*\\(\\d{4}\\)\\s*$"), "")
+		val showBase = show.replace(yearSuffix, "")
 		for (prefix in listOf(show, showBase)) if (prefix.isNotEmpty() && t.startsWith(prefix, true)) t = t.substring(prefix.length)
-		t = t.replace(Regex("(?i)\\bS\\d{1,3}\\s*E\\d{1,4}\\b"), "")
+		t = t.replace(seasonEpisode, "")
 		return t.trim(' ', '-', ':', '.', '|', '_')
 	}
 

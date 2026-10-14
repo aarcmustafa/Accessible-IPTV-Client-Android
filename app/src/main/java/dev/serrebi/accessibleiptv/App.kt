@@ -200,7 +200,7 @@ class App : Application() {
 	private fun guideFingerprint(): Int = channels.mapTo(HashSet()) { it.tvgId.lowercase().ifEmpty { Xmltv.nameKey(it.name) } }.hashCode()
 
 	fun guideStale(): Boolean =
-		channels.isNotEmpty() && (System.currentTimeMillis() - prefs.lastEpgImport > 86_400_000L || guideFingerprint() != prefs.guideFingerprint)
+		channels.isNotEmpty() && (!epg.hasGuide || System.currentTimeMillis() - prefs.lastEpgImport > 86_400_000L || guideFingerprint() != prefs.guideFingerprint)
 
 	companion object {
 		const val LIVE = "live"

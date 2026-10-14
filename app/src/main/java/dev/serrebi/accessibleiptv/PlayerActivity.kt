@@ -224,20 +224,32 @@ class PlayerActivity : AppCompatActivity() {
 		fullscreen = on
 		exitFullscreenOnBack.isEnabled = on
 		val shown = if (on) View.GONE else View.VISIBLE
-		for (id in listOf(R.id.controls, R.id.nowPlaying, R.id.playerStatus)) findViewById<View>(id).visibility = shown
 		val bars = WindowCompat.getInsetsController(window, window.decorView)
 		if (on) {
 			bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 			bars.hide(WindowInsetsCompat.Type.systemBars())
 		} else bars.show(WindowInsetsCompat.Type.systemBars())
-		video.isFocusable = on
-		video.isClickable = on
-		video.importantForAccessibility = if (on) View.IMPORTANT_FOR_ACCESSIBILITY_YES else View.IMPORTANT_FOR_ACCESSIBILITY_NO
-		video.contentDescription = if (on) getString(R.string.video_full_screen) else null
+		// Order matters: the new target must hold focus before the old one stops being focusable,
+		// or Android hands focus to the first button (Pause) and the next OK pauses the stream.
+		if (on) {
+			video.isFocusable = true
+			video.isClickable = true
+			video.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+			video.contentDescription = getString(R.string.video_full_screen)
+			video.requestFocus()
+			for (id in listOf(R.id.controls, R.id.nowPlaying, R.id.playerStatus)) findViewById<View>(id).visibility = shown
+		} else {
+			for (id in listOf(R.id.controls, R.id.nowPlaying, R.id.playerStatus)) findViewById<View>(id).visibility = shown
+			findViewById<View>(R.id.btnFull).requestFocus()
+			video.isFocusable = false
+			video.isClickable = false
+			video.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+			video.contentDescription = null
+		}
 		val target = if (on) video else findViewById<View>(R.id.btnFull)
-		target.requestFocus()
 		target.post { target.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null) }
 	}
+
 
 	private fun cast() {
 		if (localFile) return status.status(getString(R.string.cast_local_file))

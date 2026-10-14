@@ -100,6 +100,9 @@ class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
 		val wantIds = channels.mapNotNullTo(HashSet()) { it.tvgId.lowercase().ifEmpty { null } }
 		val wantNames = channels.mapTo(HashSet()) { Xmltv.nameKey(it.name) }
 		val db = writableDatabase
+		// One transaction for the whole guide held ~185 MB of native memory and got the app
+		// killed on a 2 GB TV. Small page cache, and commit every 20,000 programmes.
+		db.execSQL("PRAGMA cache_size=-4000")
 		db.beginTransaction()
 		var count = 0
 		try {
@@ -132,9 +135,10 @@ class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
 							}
 							"programme" -> {
 								val id = p.getAttributeValue(null, "channel").orEmpty()
-								val start = Xmltv.parseTime(p.getAttributeValue(null, "start"))
-								val stop = Xmltv.parseTime(p.getAttributeValue(null, "stop"))
-								if (id in kept && start != null && stop != null && stop > fromMs && start < toMs) {
+								// Skip unmatched channels before doing any work on their times.
+								val start = if (id in kept) Xmltv.parseTime(p.getAttributeValue(null, "start")) else null
+								val stop = if (start != null) Xmltv.parseTime(p.getAttributeValue(null, "stop")) else null
+								if (start != null && stop != null && stop > fromMs && start < toMs) {
 									var title = ""
 									var desc = ""
 									while (!(p.next() == XmlPullParser.END_TAG && p.name == "programme")) {
@@ -146,7 +150,12 @@ class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
 									insProg.bindString(1, id); insProg.bindLong(2, start); insProg.bindLong(3, stop)
 									insProg.bindString(4, title); insProg.bindString(5, desc)
 									insProg.executeInsert()
-									if (++count % 5000 == 0) progress(count)
+									if (++count % 20_000 == 0) {
+										db.setTransactionSuccessful()
+										db.endTransaction()
+										db.beginTransaction()
+										progress(count)
+									}
 								}
 							}
 						}

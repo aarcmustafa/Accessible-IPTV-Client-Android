@@ -14,7 +14,10 @@ object AudioTracks {
 	private const val COMPOUND_MIN = 6
 
 	fun tokens(text: String?): List<String> =
-		text.orEmpty().lowercase().split(Regex("[\\W_]+")).filter { it.isNotEmpty() }
+		text.orEmpty().lowercase().split(nonWord).filter { it.isNotEmpty() }
+
+	// Compiled once: each Regex holds native ICU memory until a GC finalizes it.
+	private val nonWord = Regex("[\\W_]+")
 
 	fun matches(name: String?, keyword: String?): Boolean {
 		val have = tokens(name)
