@@ -3,6 +3,7 @@ package dev.serrebi.accessibleiptv
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import androidx.core.view.WindowInsetsCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -27,9 +28,35 @@ class App : Application() {
 		prefs = Prefs(this)
 		epg = Epg(this)
 		Recorder.createChannel(this)
+		keepContentClearOfSystemBars()
 		// 0.1.0 cached as channels_<id>.json, before sections existed.
 		filesDir.listFiles { f -> f.name.matches(Regex("channels_[^_]+\\.json")) }?.forEach { it.delete() }
 	}
+
+	/**
+	 * Android 15+ draws every app edge to edge. Without this, the status bar covered the top
+	 * of each screen and the navigation bar / Samsung taskbar covered the player's buttons.
+	 * One place for every activity: pad the content view by the bars, cutout and keyboard.
+	 */
+	private fun keepContentClearOfSystemBars() = registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+		override fun onActivityPostCreated(a: android.app.Activity, b: android.os.Bundle?) {
+			val content = a.findViewById<android.view.View>(android.R.id.content) ?: return
+			androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(content) { v, insets ->
+				val i = insets.getInsets(
+					WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime(),
+				)
+				v.setPadding(i.left, i.top, i.right, i.bottom)
+				insets
+			}
+		}
+		override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) = Unit
+		override fun onActivityStarted(a: android.app.Activity) = Unit
+		override fun onActivityResumed(a: android.app.Activity) = Unit
+		override fun onActivityPaused(a: android.app.Activity) = Unit
+		override fun onActivityStopped(a: android.app.Activity) = Unit
+		override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) = Unit
+		override fun onActivityDestroyed(a: android.app.Activity) = Unit
+	})
 
 	private fun cacheFile(src: Source, section: String) = File(filesDir, "channels_${src.id}_$section.json")
 

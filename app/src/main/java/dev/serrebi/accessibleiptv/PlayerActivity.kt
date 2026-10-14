@@ -31,7 +31,10 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.media3.cast.CastPlayer
@@ -117,7 +120,21 @@ class PlayerActivity : AppCompatActivity() {
 			// Some servers (Dispatcharr) take 20 s to send the first byte of a channel.
 			.setConnectTimeoutMs(30_000).setReadTimeoutMs(45_000)
 		// DefaultDataSource also opens content:// URIs, so saved recordings play here too.
-		exo = ExoPlayer.Builder(this).setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http))).build()
+		// Re-encoded IPTV TS often has no H.264 access-unit delimiters; without DETECT_ACCESS_UNITS
+		// ExoPlayer cannot frame the video and plays sound only. NON_IDR_KEYFRAMES starts the
+		// picture at the first usable frame instead of waiting for an IDR.
+		val extractors = DefaultExtractorsFactory().setTsExtractorFlags(
+			DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES,
+		)
+		// Live streams arrive at real time, so the default 5 s refill after a stall meant constant
+		// buffering. Start and resume sooner; keep up to 30 s when the server sends faster.
+		val buffering = DefaultLoadControl.Builder()
+			.setBufferDurationsMs(15_000, 30_000, 1_500, 2_500)
+			.build()
+		exo = ExoPlayer.Builder(this)
+			.setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http), extractors))
+			.setLoadControl(buffering)
+			.build()
 		localFile = plain.startsWith("content://")
 		// Devices without Google Play services (many TVs) have no Cast framework: play locally only.
 		castContext = if (localFile) null else runCatching { CastContext.getSharedInstance(this) }.getOrNull()
