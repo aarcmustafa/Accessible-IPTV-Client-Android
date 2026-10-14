@@ -169,9 +169,25 @@ class ScreenTest {
 		a.findViewById<EditText>(R.id.maxBuffer).setText("abc")
 		a.findViewById<EditText>(R.id.days).setText("")
 		c.resume().pause()
-		assertEquals(10.0, app.prefs.bufferSeconds, 0.0)
+		assertEquals(25.0, app.prefs.bufferSeconds, 0.0)
 		assertEquals(300.0, app.prefs.maxBufferSeconds, 0.0)
 		assertEquals(2, app.prefs.epgDaysAhead)
+	}
+
+	@Test fun invalidBufferDefaultsStillFitTheChosenMaximum() {
+		val c = Robolectric.buildActivity(SettingsActivity::class.java).setup()
+		val a = c.get()
+		a.findViewById<EditText>(R.id.buffer).setText("-1")
+		a.findViewById<EditText>(R.id.maxBuffer).setText("12")
+		c.pause()
+		assertEquals(12.0, app.prefs.bufferSeconds, 0.0)
+		assertEquals(12.0, app.prefs.maxBufferSeconds, 0.0)
+		c.resume()
+		a.findViewById<EditText>(R.id.buffer).setText("-1")
+		a.findViewById<EditText>(R.id.maxBuffer).setText("-1")
+		c.pause()
+		assertEquals(25.0, app.prefs.bufferSeconds, 0.0)
+		assertEquals(30.0, app.prefs.maxBufferSeconds, 0.0)
 	}
 
 	// ---- Playlists ----

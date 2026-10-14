@@ -232,12 +232,23 @@ class FeatureTest {
 		assertFalse(app.prefs.speakSubtitles)
 	}
 
-	@Test fun theOldSixSecondDefaultBecomesTen() {
-		assertEquals(10.0, app.prefs.bufferSeconds, 0.0) // fresh install
-		app.prefs.bufferSeconds = 6.0 // 0.2.5 to 0.2.7 default, saved by Settings
-		assertEquals(10.0, app.prefs.bufferSeconds, 0.0)
-		app.prefs.bufferSeconds = 8.0 // set by hand: kept
+	@Test fun historicalBufferDefaultsBecomeTwentyFiveWithoutChangingCustomSettings() {
+		assertEquals(25.0, app.prefs.bufferSeconds, 0.0)
+		assertEquals(30.0, app.prefs.maxBufferSeconds, 0.0)
+		for (old in listOf(6.0, 10.0)) {
+			app.prefs.bufferSeconds = old
+			app.prefs.maxBufferSeconds = 18.0
+			assertEquals(25.0, app.prefs.bufferSeconds, 0.0)
+			assertEquals(30.0, app.prefs.maxBufferSeconds, 0.0)
+		}
+		app.prefs.bufferSeconds = 8.0
+		app.prefs.maxBufferSeconds = 12.0
 		assertEquals(8.0, app.prefs.bufferSeconds, 0.0)
+		assertEquals(12.0, app.prefs.maxBufferSeconds, 0.0)
+		app.prefs.bufferSeconds = 10.0
+		assertEquals("a custom ceiling cannot undercut the migrated cushion", 25.0, app.prefs.maxBufferSeconds, 0.0)
+		val c = Cushion(app.prefs.bufferSeconds, app.prefs.maxBufferSeconds)
+		assertEquals(25_000_000L, c.targetUs)
 	}
 
 	@Test fun exportImportRoundTripsEverything() {

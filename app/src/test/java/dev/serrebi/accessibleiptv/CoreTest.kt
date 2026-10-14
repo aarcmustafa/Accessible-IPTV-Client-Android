@@ -119,6 +119,18 @@ class CoreTest {
 		assertEquals(Cushion.SLOW, c.speedFor(6_500_000, Cushion.SLOW))
 	}
 
+	@Test fun twentyFiveSecondCushionKeepsTheTwoSecondStart() {
+		val c = Cushion(Prefs.DEFAULT_BUFFER.toDouble(), 30.0)
+		assertTrue(c.shouldStartPlayback(params(2.0, rebuffering = false)))
+		assertEquals(Cushion.SLOW, c.speedFor(24_900_000, Cushion.SLOW))
+		assertEquals(1f, c.speedFor(25_000_000, Cushion.SLOW))
+		c.onStall()
+		assertFalse(c.shouldStartPlayback(params(25.0)))
+		assertTrue(c.shouldStartPlayback(params(26.0)))
+		repeat(8) { c.onStall() }
+		assertEquals(30_000_000L, c.targetUs)
+	}
+
 	@Test fun cushionMatchesDesktopCache() {
 		val c = Cushion(6.0, 8.0)
 		assertFalse(c.shouldStartPlayback(params(5.9)))
