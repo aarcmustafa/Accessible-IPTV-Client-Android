@@ -11,6 +11,13 @@ import org.xmlpull.v1.XmlPullParser
  * guide by tvg-id first, then by a normalised name.
  */
 class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
+	// Channel rows read now/next on the main thread while an import holds a write
+	// transaction open for minutes of download. Without WAL those reads wait: ANR.
+	init { setWriteAheadLoggingEnabled(true) }
+
+	/** Not `this`: getReadableDatabase locks the helper itself, so @Synchronized import blocked every read. */
+	private val importLock = Any()
+
 	override fun onCreate(db: SQLiteDatabase) {
 		db.execSQL("CREATE TABLE prog (ch TEXT NOT NULL, start INTEGER NOT NULL, stop INTEGER NOT NULL, title TEXT, descr TEXT)")
 		db.execSQL("CREATE INDEX prog_ch ON prog (ch, start)")
@@ -109,8 +116,7 @@ class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
 		else -> false
 	}
 
-	@Synchronized
-	fun import(urls: List<String>, channels: List<Channel>, fromMs: Long, toMs: Long, progress: (Int) -> Unit): Int {
+	fun import(urls: List<String>, channels: List<Channel>, fromMs: Long, toMs: Long, progress: (Int) -> Unit): Int = synchronized(importLock) {
 		val wantIds = channels.mapNotNullTo(HashSet()) { it.tvgId.lowercase().ifEmpty { null } }
 		val wantNames = channels.mapTo(HashSet()) { Xmltv.nameKey(it.name) }
 		val db = writableDatabase

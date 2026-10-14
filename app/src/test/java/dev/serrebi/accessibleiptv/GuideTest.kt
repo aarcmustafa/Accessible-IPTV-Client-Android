@@ -146,6 +146,32 @@ class GuideTest {
 		assertEquals(emptyList<Programme>(), epg.schedule(ch("Nothing"), 0, Long.MAX_VALUE))
 	}
 
+	/** Channel rows read now/next on the main thread; a slow guide download froze them into an ANR. */
+	@Test fun readsDoNotWaitForAnImportInProgress() {
+		server.text("/g.xml", xml(standard, ab))
+		import("/g.xml")
+		val sent = java.util.concurrent.CountDownLatch(1)
+		val release = java.util.concurrent.CountDownLatch(1)
+		server.on("/slow.xml") { ex ->
+			ex.sendResponseHeaders(200, 0)
+			ex.responseBody.write(xml(standard, ab).substringBefore("</tv>").toByteArray())
+			ex.responseBody.flush()
+			sent.countDown()
+			release.await(30, java.util.concurrent.TimeUnit.SECONDS)
+			ex.responseBody.write("</tv>\n".toByteArray())
+			ex.responseBody.close()
+		}
+		val importer = Thread { runCatching { import("/slow.xml") } }.apply { start() }
+		try {
+			assertTrue(sent.await(10, java.util.concurrent.TimeUnit.SECONDS))
+			val read = java.util.concurrent.Executors.newSingleThreadExecutor().submit<String?> { epg.nowNext(bbc, now).now?.title }
+			assertEquals("A", read.get(3, java.util.concurrent.TimeUnit.SECONDS))
+		} finally {
+			release.countDown()
+			importer.join(10_000)
+		}
+	}
+
 	private fun assertNoStagingTables() {
 		epg.readableDatabase.rawQuery("SELECT name FROM sqlite_master WHERE name LIKE '%_new'", null).use { assertEquals(0, it.count) }
 	}

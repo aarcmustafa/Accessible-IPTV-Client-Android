@@ -168,6 +168,16 @@ class FeatureTest {
 		assertEquals(listOf("BBC One", "Arena"), app.prefs.recent.map { app.channel(it)!!.name })
 	}
 
+	@Test fun previousChannelIsNotSkippedWhenTheLastIsGone() {
+		playlist(numbered)
+		val a = main()
+		Player.open(a, app.channels[0]) // BBC One
+		app.prefs.addRecent("gone:from-playlist")
+		shadowOf(a).clearNextStartedActivities()
+		more(a, R.string.previous_channel)
+		assertEquals("BBC One", shadowOf(a).nextStartedActivity.getStringExtra("title"))
+	}
+
 	@Test fun recentListIsCappedAndDeduplicated() {
 		repeat(25) { app.prefs.addRecent("k$it") }
 		app.prefs.addRecent("k20")

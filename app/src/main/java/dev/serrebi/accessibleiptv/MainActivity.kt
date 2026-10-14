@@ -288,11 +288,17 @@ class MainActivity : AppCompatActivity() {
 		}.show()
 	}
 
-	private fun recentChannels() = app.prefs.recent.mapNotNull { app.channel(it) }
+	/** Recent holds live keys only; app.channel would also scan a loaded 100k-title movie list per key. */
+	private fun recentChannels(): List<Channel> {
+		val live = app.channels.associateBy { it.key }
+		return app.prefs.recent.mapNotNull { live[it] }
+	}
 
 	/** Desktop "Previous Channel": the live channel watched before the last one. */
 	private fun playPrevious() {
-		val prev = recentChannels().getOrNull(1) ?: return status.status(getString(R.string.no_previous))
+		// Index the saved keys, not the found channels: a dropped newest key would shift "previous" one back.
+		val prev = app.prefs.recent.getOrNull(1)?.let { app.channels.firstOrNull { c -> c.key == it } }
+			?: return status.status(getString(R.string.no_previous))
 		Player.open(this, prev, status)
 	}
 
