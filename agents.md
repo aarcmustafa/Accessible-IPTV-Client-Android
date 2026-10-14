@@ -40,6 +40,9 @@ cvs-health/android-view-accessibility-techniques.
   Big lists MUST stream: `Net.forEachObject` + `JsonReader` cache reader. Reading get_vod_streams whole (130 MB) crashed with OOM. `largeHeap` is on.
 - Cast: `CastPlayer.Builder(ctx).setLocalPlayer(exo)` wraps the local player and transfers by itself; skipped when Play services are missing.
 
+- Player traps: keep `FLAG_DETECT_ACCESS_UNITS` on the TS extractor (re-encoded IPTV H.264 has no AUD NALs -> audio only without it). Live streams arrive at real time: keep the short rebuffer target in `DefaultLoadControl`.
+- Edge to edge: `App.keepContentClearOfSystemBars()` pads every activity's content by bars/cutout/IME. Do not remove; Samsung's taskbar covered the player buttons.
+
 ## Not yet ported
 
 Translations, Stalker VOD, an in-app updater.
