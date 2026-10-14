@@ -8,6 +8,8 @@ import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.recyclerview.widget.RecyclerView
 
 /** A row action: a TalkBack custom action and the same entry in the long-press menu. */
@@ -39,6 +41,26 @@ fun bindRow(row: View, speech: String, onClick: () -> Unit, actions: List<RowAct
 }
 
 fun View.heading() = ViewCompat.setAccessibilityHeading(this, true)
+
+/**
+ * The keyboard's Search key (or Enter on a hardware keyboard or remote): put the keyboard
+ * away and run [search] now. The reader is moved to [results] so the count is heard.
+ */
+fun android.widget.EditText.onSearchKey(results: View, search: suspend () -> Unit) {
+	imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+	setOnEditorActionListener { v, actionId, event ->
+		val enter = event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN
+		if (actionId != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH && actionId != android.view.inputmethod.EditorInfo.IME_ACTION_DONE && !enter) {
+			return@setOnEditorActionListener false
+		}
+		v.context.getSystemService(android.view.inputmethod.InputMethodManager::class.java).hideSoftInputFromWindow(v.windowToken, 0)
+		(v.context as androidx.lifecycle.LifecycleOwner).lifecycleScope.launch {
+			search()
+			results.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
+		}
+		true
+	}
+}
 
 /** Status line updates are a polite live region in the layout; this also keeps them short. */
 fun TextView.status(text: String) { this.text = text }

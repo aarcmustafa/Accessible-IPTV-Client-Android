@@ -122,6 +122,37 @@ class ScreenTest {
 		assertTrue("Back with search text does not close the app", !a.isFinishing)
 	}
 
+	@Test fun theSearchKeyClosesTheKeyboardAndSearchesNow() {
+		playlist("#EXTM3U\n#EXTINF:-1,The Challenge\nhttp://h/1.ts\n#EXTINF:-1,Challenge\nhttp://h/2.ts\n#EXTINF:-1,BBC\nhttp://h/3.ts")
+		val a = Robolectric.buildActivity(MainActivity::class.java).setup().get()
+		@Suppress("UNCHECKED_CAST") val adapter = a.findViewById<RecyclerView>(R.id.channels).adapter as RowAdapter<Channel>
+		waitUntil { adapter.itemCount == 3 }
+		val field = a.findViewById<EditText>(R.id.filter)
+		val imm = a.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+		field.requestFocus()
+		imm.showSoftInput(field, 0)
+		assertTrue(shadowOf(imm).isSoftInputVisible)
+		field.setText("challenge")
+		field.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH)
+		assertTrue("keyboard put away", !shadowOf(imm).isSoftInputVisible)
+		// No 300 ms typing pause: the Search key runs it at once.
+		val end = System.currentTimeMillis() + 5_000
+		while (adapter.items.firstOrNull()?.name != "Challenge" && System.currentTimeMillis() < end) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(10) }
+		assertEquals(listOf("Challenge", "The Challenge"), adapter.items.map { it.name })
+		assertEquals("the text stays for Back to clear", "challenge", field.text.toString())
+	}
+
+	@Test fun theFilterSearchKeyClosesTheKeyboardToo() {
+		val a = Robolectric.buildActivity(ProgrammesActivity::class.java).setup().get()
+		val field = a.findViewById<EditText>(R.id.filter)
+		val imm = a.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+		field.requestFocus()
+		imm.showSoftInput(field, 0)
+		field.setText("news")
+		field.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH)
+		assertTrue(!shadowOf(imm).isSoftInputVisible)
+	}
+
 	// ---- Settings ----
 
 	@Test fun settingsKeepNumbersInRange() {

@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
 			}
 		})
 		onBackPressedDispatcher.addCallback(this, clearSearchOnBack)
+		search.onSearchKey(channelsHeading) { searchJob?.cancel(); showChannels().join() }
 
 		findViewById<RadioGroup>(R.id.sections).setOnCheckedChangeListener { _, id ->
 			selectSection(when (id) { R.id.secMovies -> App.MOVIES; R.id.secSeries -> App.SERIES; else -> App.LIVE })
@@ -241,9 +242,9 @@ class MainActivity : AppCompatActivity() {
 		channelsHeading.post { channelsHeading.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null) }
 	}
 
-	private fun showChannels() {
+	private fun showChannels(): Job {
 		val q = search.text.toString().trim()
-		lifecycleScope.launch {
+		return lifecycleScope.launch {
 			val list = withContext(Dispatchers.Default) {
 				// Search covers every group in the section; otherwise show the chosen group.
 				if (q.isEmpty()) app.channelsIn(section, group) else App.searchRanked(app.list(section), q)

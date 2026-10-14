@@ -47,6 +47,7 @@ abstract class ListScreen : AppCompatActivity() {
 				override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
 				override fun afterTextChanged(s: Editable?) = onChange(s.toString().trim())
 			})
+			onSearchKey(heading) { onChange(text.toString().trim()) }
 		}
 	}
 }
