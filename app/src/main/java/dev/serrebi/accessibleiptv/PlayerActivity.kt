@@ -32,6 +32,8 @@ import androidx.media3.common.Tracks
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -97,6 +99,8 @@ class PlayerActivity : AppCompatActivity() {
 	private var live = false
 	private val reconnect = Reconnect(android.os.SystemClock::elapsedRealtime)
 	private val retry = android.os.Handler(android.os.Looper.getMainLooper())
+	private var retryJob: Runnable? = null
+	private var timestampResetAt: Long? = null
 
 	/**
 	 * Quick start, then build the cushion: a live stream plays 5% slow
@@ -104,6 +108,16 @@ class PlayerActivity : AppCompatActivity() {
 	 */
 	private val pace: Runnable = object : Runnable {
 		override fun run() {
+			val local = player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE
+			// A sink warning alone is recoverable. Retry only if its backward reset leaves playback stuck.
+			if (exo.isPlaying || exo.totalBufferedDuration >= 500) timestampResetAt = null
+			val resetAt = timestampResetAt
+			if (local && !pausedByStop && player.playWhenReady && exo.playbackState == M3Player.STATE_BUFFERING &&
+				resetAt != null && android.os.SystemClock.elapsedRealtime() - resetAt >= 5_000) {
+				android.util.Log.w("AiptvPlayer", "timestamp reset left live playback stuck; recovering")
+				timestampResetAt = null
+				tryReconnect()
+			}
 			if (exo.isPlaying && player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE) {
 				val want = cushion.speedFor(exo.totalBufferedDuration * 1000, exo.playbackParameters.speed)
 				if (want != exo.playbackParameters.speed) exo.setPlaybackSpeed(want)
@@ -164,6 +178,15 @@ class PlayerActivity : AppCompatActivity() {
 			.setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http), extractors))
 			.setLoadControl(cushion)
 			.build()
+		exo.addAnalyticsListener(object : AnalyticsListener {
+			override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
+				if (audioSinkError is AudioSink.UnexpectedDiscontinuityException &&
+					audioSinkError.expectedPresentationTimeUs - audioSinkError.actualPresentationTimeUs >= 5_000_000 &&
+					timestampResetAt == null) {
+					timestampResetAt = android.os.SystemClock.elapsedRealtime()
+				}
+			}
+		})
 		localFile = plain.startsWith("content://")
 		// Devices without Google Play services (many TVs) have no Cast framework: play locally only.
 		castContext = if (localFile) null else runCatching { CastContext.getSharedInstance(this) }.getOrNull()
@@ -188,9 +211,9 @@ class PlayerActivity : AppCompatActivity() {
 				if (player.playbackState == M3Player.STATE_IDLE || player.playbackState == M3Player.STATE_ENDED) {
 					// Retry after a failure: a live stream starts again at the live edge.
 					retry.removeCallbacksAndMessages(null)
+					retryJob = null
 					reconnect.reset()
-					if (live) player.seekToDefaultPosition()
-					player.prepare()
+					if (live) prepareLive() else player.prepare()
 				}
 				player.play()
 			}
@@ -337,16 +360,30 @@ class PlayerActivity : AppCompatActivity() {
 
 	/** Schedules the next reconnect of a live stream; false when this stream does not get one or the budget is spent. */
 	private fun tryReconnect(): Boolean {
-		if (!live || player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return false
+		if (!live || pausedByStop || player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return false
+		if (retryJob != null) return true
 		val delay = reconnect.next() ?: return false
 		say(getString(R.string.reconnecting), 2)
-		retry.postDelayed({
+		val job = Runnable {
+			retryJob = null
+			if (isFinishing || isDestroyed || pausedByStop) return@Runnable
 			// Behind the live window after a drop: start again at the live edge.
-			player.seekToDefaultPosition()
-			player.prepare()
+			prepareLive()
 			player.play()
-		}, delay)
+		}
+		retryJob = job
+		retry.postDelayed(job, delay)
 		return true
+	}
+
+	private fun prepareLive() {
+		val item = player.currentMediaItem ?: return
+		timestampResetAt = null
+		autoTrackDone = false
+		// A fresh media period discards stale sample queues and timestamp adjusters after a source reset.
+		player.stop()
+		player.setMediaItem(item, true)
+		player.prepare()
 	}
 
 	private fun mimeOf(url: String): String {
@@ -447,6 +484,8 @@ class PlayerActivity : AppCompatActivity() {
 
 	override fun onStop() {
 		super.onStop()
+		retryJob?.let { retry.removeCallbacks(it) }
+		retryJob = null
 		// Leaving the app stops local playback; a cast session keeps playing on the TV.
 		if (player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE && player.playWhenReady) {
 			player.pause()
@@ -459,7 +498,7 @@ class PlayerActivity : AppCompatActivity() {
 		// Back in the app: live TV picks up at the live edge, not minutes behind where it stopped.
 		if (!pausedByStop) return
 		pausedByStop = false
-		if (live) player.seekToDefaultPosition()
+		if (live) prepareLive()
 		player.play()
 	}
 

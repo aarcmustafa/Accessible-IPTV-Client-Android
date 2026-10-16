@@ -24,6 +24,8 @@ class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = Q
 	// Keep loading until the maximum is buffered, like VLC filling its cache.
 	private val inner = DefaultLoadControl.Builder()
 		.setBufferDurationsMs(msOf(maxSeconds), msOf(maxSeconds) + 2_000, msOf(startSeconds), msOf(startSeconds))
+		// A timestamp reset can fill the byte target with media that cannot yet play.
+		.setPrioritizeTimeOverSizeThresholds(true)
 		.build()
 
 	private val maxUs = (maxSeconds.coerceAtLeast(startSeconds) * 1_000_000).toLong()
