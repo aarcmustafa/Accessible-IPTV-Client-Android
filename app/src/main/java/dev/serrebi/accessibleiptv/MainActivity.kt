@@ -261,9 +261,10 @@ class MainActivity : AppCompatActivity() {
 		if (manual) status.status(getString(R.string.importing_guide))
 		lifecycleScope.launch {
 			try {
-				app.importGuide { }
+				val count = app.importGuide { }
 				channelAdapter.notifyDataSetChanged()
-				if (manual) status.status(getString(R.string.guide_imported))
+				// No guide URL yet, or nothing in it matches these channels: an import of nothing.
+				if (manual) status.status(getString(if (count > 0) R.string.guide_imported else R.string.no_guide))
 			} catch (e: Exception) {
 				status.status(getString(R.string.guide_failed, e.message ?: e.javaClass.simpleName))
 			}

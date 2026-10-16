@@ -45,6 +45,9 @@ cvs-health/android-view-accessibility-techniques.
   Not dataSync: Android 15 stops dataSync after 6 h a day. `USE_EXACT_ALARM` (sideloaded, no Play policy) keeps exact alarms on
   Android 14+, where `SCHEDULE_EXACT_ALARM` is denied by default; without an exact alarm the background service start is refused.
 - Guide import builds `prog_new`/`gch_new` and swaps on success: a failed download keeps the old guide.
+  An import with no guide URL does nothing at all (it used to swap in empty tables and wipe the guide); a
+  finished import counts as fresh for a day even when nothing matched, so a huge guide is not re-fetched on
+  every load (`Epg.hasGuide` is false then — do not gate staleness on it).
   The guide DB is WAL and `import` locks a private object, never the helper: channel rows read now/next on the
   main thread during an import (0.2.10 ANR'd when Recently watched redrew the list mid-download).
 - Help text is `res/raw/help.md`, not a string resource: aapt folds string newlines into spaces.

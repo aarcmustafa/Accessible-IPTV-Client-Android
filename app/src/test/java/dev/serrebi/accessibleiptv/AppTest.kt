@@ -117,6 +117,56 @@ class AppTest {
 		assertTrue(app.guideStale())
 	}
 
+	/** "20261013143000 +0000" for a UTC time, as XMLTV writes it. */
+	private fun xmltv(ms: Long) =
+		java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(java.time.Instant.ofEpochMilli(ms).atOffset(java.time.ZoneOffset.UTC)) + " +0000"
+
+	@Test fun aPlaylistWithNoGuideAnywhereIsNeverStale() {
+		// An M3U with no x-tvg-url and no guide URL typed in: there is nothing to fetch.
+		server.text("/list.m3u", "#EXTM3U\n#EXTINF:-1,BBC One\nhttp://h/1.ts")
+		app.prefs.sources = listOf(src)
+		load()
+		assertFalse("no guide URL means nothing to import", app.guideStale())
+		assertEquals(0, runBlocking { app.importGuide { } })
+	}
+
+	@Test fun aGuideThatMatchesNoChannelIsImportedOnceNotOnEveryLoad() {
+		// The wrong guide for this playlist: a finished import is still a finished import.
+		server.text("/guide.xml", "<tv><channel id=\"other.id\"><display-name>Other</display-name></channel></tv>")
+		load()
+		assertTrue(app.guideStale())
+		assertEquals(0, runBlocking { app.importGuide { } })
+		assertFalse("a finished import is not repeated on every load", app.guideStale())
+	}
+
+	@Test fun anImportWithNoGuideUrlKeepsTheExistingGuide() {
+		val now = System.currentTimeMillis()
+		server.text(
+			"/guide.xml",
+			"<tv><channel id=\"bbc1.uk\"><display-name>BBC One</display-name></channel>" +
+				"<programme start=\"${xmltv(now - 3_600_000)}\" stop=\"${xmltv(now + 3_600_000)}\" channel=\"bbc1.uk\"><title>Now</title></programme></tv>",
+		)
+		load()
+		runBlocking { app.importGuide { } }
+		val bbc = app.channels.first { it.name == "BBC One" }
+		assertEquals(1, app.epg.schedule(bbc, 0, Long.MAX_VALUE).size)
+		// The user edits the playlist and its guide URL goes: refreshing must keep the guide.
+		app.prefs.sources = listOf(src)
+		assertEquals(0, runBlocking { app.importGuide { } })
+		assertEquals("an import of nothing never throws the guide away", 1, app.epg.schedule(bbc, 0, Long.MAX_VALUE).size)
+	}
+
+	@Test fun aPlaylistGroupNamedAllOrFavoritesDoesNotAddASecondRow() {
+		server.text(
+			"/list.m3u",
+			"#EXTM3U\n#EXTINF:-1 group-title=\"All\",One\nhttp://h/1.ts\n" +
+				"#EXTINF:-1 group-title=\"Favorites\",Two\nhttp://h/2.ts\n#EXTINF:-1 group-title=\"Sport\",Three\nhttp://h/3.ts",
+		)
+		app.prefs.sources = listOf(src)
+		load()
+		assertEquals(listOf(App.ALL, App.FAVORITES, "Sport"), app.groups(App.LIVE))
+	}
+
 	@Test fun restoredScreensFindTheirChannel() {
 		load()
 		val key = app.channels[0].key

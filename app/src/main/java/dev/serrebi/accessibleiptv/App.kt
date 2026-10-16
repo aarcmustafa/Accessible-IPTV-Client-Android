@@ -164,7 +164,9 @@ class App : Application() {
 	}
 
 	/** Group names in playlist order, with "Favorites" and "All" on top like the desktop app. */
-	fun groups(section: String): List<String> = listOf(ALL, FAVORITES) + list(section).mapTo(LinkedHashSet()) { it.group }
+	fun groups(section: String): List<String> = listOf(ALL, FAVORITES) +
+		// A playlist with its own group named "All" or "Favorites" must not add a second row.
+		list(section).mapTo(LinkedHashSet()) { it.group }.filterNot { it == ALL || it == FAVORITES }
 
 	fun channelsIn(section: String, group: String): List<Channel> = when (group) {
 		ALL -> list(section)
@@ -248,6 +250,9 @@ class App : Application() {
 
 	suspend fun importGuide(progress: (Int) -> Unit): Int = withContext(Dispatchers.IO) {
 		val urls = prefs.sources.map { it.effectiveEpgUrl }.filter { it.isNotBlank() }.distinct()
+		// No guide URL anywhere: the import would swap in empty tables and throw away the
+		// guide the user already has for nothing. Nothing to do.
+		if (urls.isEmpty()) return@withContext 0
 		val now = System.currentTimeMillis()
 		val back = maxOf(1, channels.maxOfOrNull { it.catchupDays } ?: 0).coerceAtMost(7)
 		val n = epg.import(urls, channels, now - back * 86_400_000L, now + prefs.epgDaysAhead * 86_400_000L, progress)
@@ -263,7 +268,13 @@ class App : Application() {
 	 */
 	private fun guideFingerprint(): Int = channels.mapTo(HashSet()) { it.tvgId.lowercase().ifEmpty { Xmltv.nameKey(it.name) } }.hashCode()
 
-	fun guideStale(): Boolean =
-		channels.isNotEmpty() && (!epg.hasGuide || System.currentTimeMillis() - prefs.lastEpgImport > 86_400_000L || guideFingerprint() != prefs.guideFingerprint)
+	/**
+	 * A guide the playlist or the user named is there, no import has happened yet today, or the
+	 * playlist changed since the last one. A finished import counts as fresh even when nothing
+	 * in it matched: [Epg.hasGuide] is false then, and going by that re-downloaded the whole
+	 * guide (100 MB and up) on every single load, forever.
+	 */
+	fun guideStale(): Boolean = channels.isNotEmpty() && prefs.sources.any { it.effectiveEpgUrl.isNotBlank() } &&
+		(prefs.lastEpgImport == 0L || System.currentTimeMillis() - prefs.lastEpgImport > 86_400_000L || guideFingerprint() != prefs.guideFingerprint)
 
 }
