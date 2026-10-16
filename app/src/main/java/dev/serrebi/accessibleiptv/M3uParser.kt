@@ -98,10 +98,13 @@ object M3uParser {
 
 	/** Index of the comma that starts the title: the first one outside quotes. */
 	private fun titleComma(line: String): Int {
-		var inQuotes = false
+		var quote: Char? = null
+		var previous: Char? = null
 		for ((i, c) in line.withIndex()) {
-			if (c == '"') inQuotes = !inQuotes
-			else if (c == ',' && !inQuotes) return i
+			if (c == quote) quote = null
+			else if (quote == null && previous == '=' && (c == '"' || c == '\'')) quote = c
+			else if (c == ',' && quote == null) return i
+			if (!c.isWhitespace()) previous = c
 		}
 		return -1
 	}

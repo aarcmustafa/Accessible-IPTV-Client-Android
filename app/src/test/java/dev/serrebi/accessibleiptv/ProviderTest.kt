@@ -51,13 +51,15 @@ class ProviderTest {
 		try { Net.text("${server.url}/loop"); fail() } catch (e: IOException) { assertTrue(e.message!!.contains("redirect", true)) }
 	}
 
-	@Test fun jsonStreamSkipsNestingAndErrorObjects() {
+	@Test fun jsonStreamSkipsNestingAndRejectsErrorObjects() {
 		server.text("/list", """[{"a":"1","n":2,"b":true,"x":{"deep":1},"y":[1,2],"z":null},"junk",{"a":"2"}]""")
 		val seen = ArrayList<Map<String, String>>()
 		Net.forEachObject("${server.url}/list") { seen += HashMap(it) }
 		assertEquals(listOf(mapOf("a" to "1", "n" to "2", "b" to "true"), mapOf("a" to "2")), seen)
 		server.text("/err", """{"user_info":{"auth":0}}""")
-		Net.forEachObject("${server.url}/err") { fail("an error object has no items") }
+		org.junit.Assert.assertThrows(IOException::class.java) {
+			Net.forEachObject("${server.url}/err") { fail("an error object has no items") }
+		}
 	}
 
 	@Test fun headersFromThePlaylistReachTheServer() {

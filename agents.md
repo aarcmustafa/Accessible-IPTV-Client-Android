@@ -11,7 +11,7 @@ One APK for phones, tablets and Android TV, Android 10 (API 29) and up.
   run under Robolectric (SDK 36, `robolectric.properties`) against `FakeServer` (JDK `HttpServer` on 127.0.0.1).
   JDK 21 needs `--add-opens=java.base/jdk.internal.access=ALL-UNNAMED` (set in `testOptions`).
   A new provider quirk or user-visible bug gets a test here first.
-- `lintDebug` fails on media3 `UnstableApi` opt-in (old, not enforced by the build). Any other lint error is new.
+- `lintDebug` passes: Media3 APIs opt in through `androidx.annotation.OptIn`. Any lint error is new.
 - AGP 9.4.1 (built-in Kotlin), Kotlin 2.4.20, Gradle 9.8.0, JDK 21, compile/target SDK 37, min SDK 29.
 - `local.properties` needs `sdk.dir` with forward slashes (`C\:/...`); backslashes break Gradle with
   "filename, directory name, or volume label syntax is incorrect".

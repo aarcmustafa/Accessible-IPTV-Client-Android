@@ -36,6 +36,7 @@ class MainActivity : AppCompatActivity() {
 	private var section = App.LIVE
 	private var group = App.ALL
 	private var searchJob: Job? = null
+	private var channelsJob: Job? = null
 
 	// Back with search text clears the search first, like Escape on the desktop.
 	// Voice search: the system recogniser's best guess goes into the search field.
@@ -245,16 +246,19 @@ class MainActivity : AppCompatActivity() {
 
 	private fun showChannels(): Job {
 		val q = search.text.toString().trim()
+		val requestedSection = section
+		val requestedGroup = group
+		channelsJob?.cancel()
 		return lifecycleScope.launch {
 			val list = withContext(Dispatchers.Default) {
 				// Search covers every group in the section; otherwise show the chosen group.
-				if (q.isEmpty()) app.channelsIn(section, group) else App.searchRanked(app.list(section), q)
+				if (q.isEmpty()) app.channelsIn(requestedSection, requestedGroup) else App.searchRanked(app.list(requestedSection), q)
 			}
 			channelAdapter.submit(list)
 			findViewById<RecyclerView>(R.id.channels).contentDescription = sectionName()
 			channelsHeading.text = if (q.isEmpty()) getString(R.string.list_heading, groupLabel(group), list.size)
 			else resources.getQuantityString(R.plurals.result_count, list.size, list.size)
-		}
+		}.also { channelsJob = it }
 	}
 
 	/** Background guide loads are silent; only a failure, or a refresh the user asked for, is spoken. */

@@ -90,6 +90,9 @@ class App : Application() {
 		src.isStalker -> (if (section == LIVE) stalker(src).channels() else emptyList()).also { writeCache(cacheFile(src, section), it) }
 		else -> {
 			val text = readSource(src.url)
+			if (text.removePrefix("\uFEFF").lineSequence().none { it.trim().startsWith("#EXTM3U", true) || it.trim().startsWith("#EXTINF:", true) }) {
+				throw java.io.IOException("Not an M3U playlist")
+			}
 			val parsed = M3uParser.parse(src.id, text)
 			val bySection = parsed.groupBy { if (it.kind == Channel.KIND_LIVE) LIVE else if (it.kind == Channel.KIND_MOVIE) MOVIES else SERIES }
 			keepFavorites(cacheFile(src, LIVE), bySection[LIVE].orEmpty())
@@ -120,7 +123,11 @@ class App : Application() {
 		if (url.startsWith("content://")) contentResolver.openInputStream(Uri.parse(url))!!.use { it.readBytes().toString(Charsets.UTF_8) }
 		else Net.text(url)
 
-	fun forgetCache(src: Source) = SECTIONS.forEach { cacheFile(src, it).delete() }
+	fun forgetCache(src: Source) {
+		SECTIONS.forEach { cacheFile(src, it).delete() }
+		lists.replaceAll { _, channels -> channels.filterNot { it.sourceId == src.id } }
+		stalkers.remove(src.id)
+	}
 
 	/** Streams the cache back in; group and source strings are shared, not copied per item. */
 	private fun readCache(f: File): List<Channel> {
@@ -249,15 +256,19 @@ class App : Application() {
 	}
 
 	suspend fun importGuide(progress: (Int) -> Unit): Int = withContext(Dispatchers.IO) {
-		val urls = prefs.sources.map { it.effectiveEpgUrl }.filter { it.isNotBlank() }.distinct()
+		val sources = prefs.sources
+		val importedChannels = channels
+		val daysAhead = prefs.epgDaysAhead
+		val fingerprint = guideFingerprint(importedChannels)
+		val urls = sources.map { it.effectiveEpgUrl }.filter { it.isNotBlank() }.distinct()
 		// No guide URL anywhere: the import would swap in empty tables and throw away the
 		// guide the user already has for nothing. Nothing to do.
 		if (urls.isEmpty()) return@withContext 0
 		val now = System.currentTimeMillis()
-		val back = maxOf(1, channels.maxOfOrNull { it.catchupDays } ?: 0).coerceAtMost(7)
-		val n = epg.import(urls, channels, now - back * 86_400_000L, now + prefs.epgDaysAhead * 86_400_000L, progress)
-		prefs.lastEpgImport = now
-		prefs.guideFingerprint = guideFingerprint()
+		val back = maxOf(1, importedChannels.maxOfOrNull { it.catchupDays } ?: 0).coerceAtMost(7)
+		val n = epg.import(urls, importedChannels, now - back * 86_400_000L, now + daysAhead * 86_400_000L, progress)
+		prefs.lastEpgImport = if (sources == prefs.sources && daysAhead == prefs.epgDaysAhead) now else 0
+		prefs.guideFingerprint = fingerprint
 		n
 	}
 
@@ -266,7 +277,7 @@ class App : Application() {
 	 * gained channels since the last import has channels with no guide at all.
 	 * The fingerprint is the set of match keys; any change means re-import now.
 	 */
-	private fun guideFingerprint(): Int = channels.mapTo(HashSet()) { it.tvgId.lowercase().ifEmpty { Xmltv.nameKey(it.name) } }.hashCode()
+	private fun guideFingerprint(list: List<Channel> = channels): Int = list.mapTo(HashSet()) { it.tvgId.lowercase().ifEmpty { Xmltv.nameKey(it.name) } }.hashCode()
 
 	/**
 	 * A guide the playlist or the user named is there, no import has happened yet today, or the

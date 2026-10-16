@@ -126,6 +126,29 @@ class Prefs(context: Context) {
 	fun import(o: JSONObject) {
 		require(o.optString("app") == "AccessibleIPTV-Android") { "Not a settings file" }
 		val all = o.getJSONObject("settings")
+		// Validate before committing: wrong types or broken JSON can otherwise prevent every future launch.
+		for (k in all.keys()) {
+			val v = all.getJSONObject(k)
+			val type = when (k) {
+				"sources", "recent", "channelTracks", "audioKeywords", "lastGroup" -> "s"
+				"preferAd", "externalPlayer", "showStreamUrl", "speakSubtitles" -> "b"
+				"bufferSeconds", "maxBufferSeconds" -> "f"
+				"epgDaysAhead", "guideFingerprint", "prePad", "postPad", "announceLevel" -> "i"
+				"lastUpdateCheck", "lastEpgImport" -> "l"
+				"favorites" -> "set"
+				else -> v.keys().asSequence().singleOrNull()
+			}
+			require(v.length() == 1 && type in setOf("s", "b", "f", "i", "l", "set") && v.has(type!!)) { "Invalid setting: $k" }
+			when (k) {
+				"sources" -> JSONArray(v.getString("s")).let { a -> repeat(a.length()) { Source.fromJson(a.getJSONObject(it)) } }
+				"recent" -> JSONArray(v.getString("s")).let { a -> repeat(a.length()) { a.getString(it) } }
+				"channelTracks" -> JSONObject(v.getString("s"))
+				"bufferSeconds", "maxBufferSeconds" -> require(v.getDouble("f").isFinite() && v.getDouble("f") > 0 && v.getDouble("f") <= 300) { "Invalid buffer" }
+				"epgDaysAhead" -> require(v.getInt("i") in 1..14) { "Invalid guide window" }
+				"prePad", "postPad" -> require(v.getInt("i") in 0..180) { "Invalid recording padding" }
+				"announceLevel" -> require(v.getInt("i") in 0..3) { "Invalid announcement level" }
+			}
+		}
 		sp.edit {
 			clear()
 			for (k in all.keys()) {

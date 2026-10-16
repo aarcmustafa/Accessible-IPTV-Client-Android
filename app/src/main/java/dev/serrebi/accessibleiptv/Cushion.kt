@@ -20,6 +20,7 @@ import androidx.media3.exoplayer.upstream.Allocator
  * Every PlayerId overload is forwarded by hand: Kotlin's `by` delegation skips Java default
  * methods, and LoadControl's defaults throw "not implemented" (crashed the player on open).
  */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = QUICK_START_SECONDS) : LoadControl {
 	// Keep loading until the maximum is buffered, like VLC filling its cache.
 	private val inner = DefaultLoadControl.Builder()

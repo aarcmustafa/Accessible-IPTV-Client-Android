@@ -14,6 +14,47 @@ import java.time.ZoneOffset
 
 /** Pure-JVM rules: playlist parsing, catch-up URLs, guide times, provider links, retry budgets. */
 class ParsingTest {
+	@Test fun aFailedFiniteDownloadIsNotReportedAsSaved() {
+		var reads = 0
+		val input = object : java.io.InputStream() {
+			override fun read(): Int = error("bulk reads only")
+			override fun read(b: ByteArray, off: Int, len: Int): Int {
+				if (reads++ > 0) throw IOException("Connection reset")
+				b[off] = 1
+				return 1
+			}
+		}
+		org.junit.Assert.assertThrows(IOException::class.java) {
+			Recorder.copy({ input }, ByteArrayOutputStream(), reconnect = false, done = { false })
+		}
+	}
+
+	@Test fun storageFailuresAreNotRetriedAsNetworkDrops() {
+		var opens = 0
+		val out = object : java.io.OutputStream() {
+			override fun write(b: Int) { throw IOException("Disk full") }
+		}
+		org.junit.Assert.assertThrows(IOException::class.java) {
+			Recorder.copy({ opens++; ByteArrayInputStream(byteArrayOf(1)) }, out, reconnect = true, pauseMs = 0, maxMisses = 2, done = { false })
+		}
+		assertEquals("a full disk must not open another stream", 1, opens)
+	}
+
+	@Test fun aLiveConnectionCloseFailureStillReconnects() {
+		var opens = 0
+		val out = ByteArrayOutputStream()
+		val ok = Recorder.copy({
+			when (opens++) {
+				0 -> object : ByteArrayInputStream("abc".toByteArray()) {
+					override fun close() { throw IOException("Connection reset on close") }
+				}
+				1 -> ByteArrayInputStream("def".toByteArray())
+				else -> throw IOException("Offline")
+			}
+		}, out, reconnect = true, pauseMs = 0, maxMisses = 2, done = { false })
+		assertTrue(ok)
+		assertEquals("abcdef", out.toString())
+	}
 	// ---- M3U ----
 
 	@Test fun byteOrderMarkDoesNotHideTheHeader() {
@@ -69,6 +110,18 @@ class ParsingTest {
 		assertEquals("bbc1.uk", a["tvg-id"])
 		assertEquals("UK News", a["group-title"])
 		assertEquals("x", a["tvg-logo"])
+	}
+
+	@Test fun singleQuotedCommasDoNotStartTheChannelTitle() {
+		val ch = M3uParser.parse("s", "#EXTINF:-1 group-title='UK, News' tvg-name=\"Children’s TV\",News, London\nhttp://h/1.ts").single()
+		assertEquals("UK, News", ch.group)
+		assertEquals("News, London", ch.name)
+	}
+
+	@Test fun anApostropheInsideABareAttributeDoesNotHideTheTitle() {
+		val ch = M3uParser.parse("s", "#EXTINF:-1 tvg-id=kids'network,Kids Network\nhttp://h/1.ts").single()
+		assertEquals("kids'network", ch.tvgId)
+		assertEquals("Kids Network", ch.name)
 	}
 
 	@Test fun titleFallsBackToTvgNameThenUrl() {

@@ -53,7 +53,7 @@ class Stalker(private val src: Source) {
 			for (i in 0 until (g?.length() ?: 0)) g!!.getJSONObject(i).let { genres[it.optString("id")] = it.optString("title") }
 		}
 		val data = call(mapOf("type" to "itv", "action" to "get_all_channels", "force_ch_link_check" to "1"))
-			.optJSONObject("js")?.optJSONArray("data") ?: return emptyList()
+			.optJSONObject("js")?.optJSONArray("data") ?: throw IOException("Portal did not return a channel list")
 		val out = ArrayList<Channel>()
 		for (i in 0 until data.length()) {
 			val r = data.getJSONObject(i)

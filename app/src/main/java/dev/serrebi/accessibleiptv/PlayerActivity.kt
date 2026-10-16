@@ -78,6 +78,7 @@ object Player {
 	}
 }
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerActivity : AppCompatActivity() {
 	private val app by lazy { App.of(this) }
 	private lateinit var exo: ExoPlayer
@@ -233,6 +234,13 @@ class PlayerActivity : AppCompatActivity() {
 		findViewById<Button>(R.id.btnClose).setOnClickListener { finish() }
 		// After layout: inside the scrolling button bar an early request is dropped and nothing has focus.
 		pause.post { pause.requestFocus() }
+		if (ch == null && channelKey.isNotEmpty()) lifecycleScope.launch {
+			// Android can restore this activity before the main screen reloads the channel cache.
+			val restored = app.findChannel(channelKey, App.LIVE)
+			live = !catchup && restored?.isLive == true
+			if (live) status.post(pace)
+			showProgramme(announce = false)
+		}
 	}
 
 	private val listener = object : M3Player.Listener {

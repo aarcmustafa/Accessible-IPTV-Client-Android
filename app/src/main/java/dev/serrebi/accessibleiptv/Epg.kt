@@ -143,6 +143,7 @@ class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
 					val p = Xml.newPullParser()
 					p.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
 					p.setInput(input, null)
+					if (p.nextTag() != XmlPullParser.START_TAG || p.name != "tv") throw java.io.IOException("Not an XMLTV guide")
 					var ev = p.eventType
 					while (ev != XmlPullParser.END_DOCUMENT) {
 						if (ev == XmlPullParser.START_TAG) when (p.name) {

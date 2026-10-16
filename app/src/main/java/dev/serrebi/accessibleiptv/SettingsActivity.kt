@@ -41,7 +41,9 @@ class SettingsActivity : AppCompatActivity() {
 		uri ?: return@registerForActivityResult
 		status.text = runCatching {
 			val text = contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+			val oldSources = prefs.sources
 			prefs.import(JSONObject(text))
+			(oldSources + prefs.sources).distinctBy { it.id }.forEach { App.of(this).forgetCache(it) }
 			prefs.lastEpgImport = 0
 			SourcesActivity.changed = true
 			load()

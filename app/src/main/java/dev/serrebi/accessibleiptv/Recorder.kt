@@ -81,6 +81,7 @@ object Recorder {
 	 * Copies [open]'s stream into [out] until [done]. With [reconnect], a dropped or ended
 	 * stream is opened again after [pauseMs] and appended to the same file; [maxMisses]
 	 * tries in a row without a byte end it. True when anything was written.
+	 * Output failures and finite-download read failures throw, never report success.
 	 */
 	fun copy(
 		open: () -> java.io.InputStream,
@@ -95,18 +96,23 @@ object Recorder {
 		val buf = ByteArray(256 * 1024)
 		while (!done()) {
 			var got = false
-			try {
-				open().use { input ->
-					while (!done()) {
-						val n = input.read(buf)
-						if (n < 0) break
-						out.write(buf, 0, n)
-						wrote = true
-						got = true
+			val input = try { open() } catch (e: java.io.IOException) {
+				if (!reconnect) throw e
+				null
+			}
+			if (input != null) try {
+				while (!done()) {
+					val n = try { input.read(buf) } catch (e: java.io.IOException) {
+						if (!reconnect) throw e
+						break
 					}
+					if (n < 0) break
+					out.write(buf, 0, n)
+					wrote = true
+					got = true
 				}
-			} catch (e: java.io.IOException) {
-				// A dropped connection: below, the same as the server ending the stream.
+			} finally {
+				try { input.close() } catch (e: java.io.IOException) { if (!reconnect) throw e }
 			}
 			if (!reconnect || done()) break
 			misses = if (got) 0 else misses + 1
@@ -265,16 +271,25 @@ class RecordService : Service() {
 			put(MediaStore.Video.Media.RELATIVE_PATH, Recorder.FOLDER)
 			put(MediaStore.Video.Media.IS_PENDING, 1)
 		}
-		val uri = contentResolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
+		var uri: android.net.Uri? = null
 		var ok = false
 		var early = false
+		var failed = false
+		var written = 0L
 		val done = { stopping || key in cancelled || Thread.currentThread().isInterrupted || (end != 0L && System.currentTimeMillis() >= end) }
 		try {
+			uri = contentResolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
 			// A catch-up download that ends early is fetched again from the start, up to three times.
 			for (attempt in 1..3) {
 				val clock = TsClock()
 				if (uri != null) contentResolver.openOutputStream(uri, "wt")?.use { raw ->
-					val out = clock.watching(raw)
+					written = 0
+					val out = clock.watching(object : java.io.FilterOutputStream(raw) {
+						override fun write(b: ByteArray, off: Int, len: Int) {
+							out.write(b, off, len)
+							written += len
+						}
+					})
 					// Live recordings ride out drops until their end time; a download (a file) ends at its end.
 					ok = Recorder.copy({ Net.open(plain, headers) }, out, reconnect = !key.startsWith("dl:"), done = done)
 				}
@@ -282,22 +297,29 @@ class RecordService : Service() {
 				if (!early || done()) break
 				try { Thread.sleep(3_000) } catch (_: InterruptedException) { break }
 			}
-		} catch (_: Exception) {
+		} catch (e: Exception) {
 			// Storage failed or stop pressed: keep what was written.
+			failed = true
+			android.util.Log.e("AiptvRecorder", "Recording failed", e)
 		} finally {
-			if (uri != null) {
-				if (ok) contentResolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
-				else contentResolver.delete(uri, null, null)
+			try {
+				if (uri != null) {
+					if (written > 0) contentResolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+					else contentResolver.delete(uri, null, null)
+				}
+			} catch (e: Exception) {
+				failed = true
+				android.util.Log.e("AiptvRecorder", "Could not finalize recording", e)
 			}
 			jobs.remove(key)
 			Recorder.active.remove(key)
 			cancelled -= key
-			val msg = when { !ok -> R.string.recording_failed; early -> R.string.download_ended_early; else -> R.string.recording_saved }
-			getSystemService(NotificationManager::class.java).notify(
+			val msg = when { failed || !ok -> R.string.recording_failed; early -> R.string.download_ended_early; else -> R.string.recording_saved }
+			runCatching { getSystemService(NotificationManager::class.java).notify(
 				key.hashCode(),
 				NotificationCompat.Builder(this, Recorder.NOTIF_CHANNEL).setSmallIcon(android.R.drawable.stat_sys_download_done)
 					.setContentTitle(getString(msg, label)).build(),
-			)
+			) }.onFailure { android.util.Log.e("AiptvRecorder", "Could not notify recording result", it) }
 			if (jobs.isEmpty()) stopSelf()
 		}
 	}

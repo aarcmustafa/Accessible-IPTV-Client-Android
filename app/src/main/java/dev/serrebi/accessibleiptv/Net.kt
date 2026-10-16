@@ -41,11 +41,11 @@ object Net {
 	/**
 	 * Streams a JSON array of objects, handing each object's flat fields to [each] as strings.
 	 * Xtream VOD lists run past 100 MB; reading them whole runs a phone out of memory.
-	 * Nested values are skipped. A non-array body (an error object) yields nothing.
+	 * Nested values are skipped. A non-array body is an error, not an empty playlist.
 	 */
 	fun forEachObject(url: String, each: (Map<String, String>) -> Unit) = open(url).use { input ->
 		val r = android.util.JsonReader(java.io.InputStreamReader(input, Charsets.UTF_8))
-		if (r.peek() != android.util.JsonToken.BEGIN_ARRAY) return@use
+		if (r.peek() != android.util.JsonToken.BEGIN_ARRAY) throw IOException("Provider did not return a channel list")
 		r.beginArray()
 		val fields = HashMap<String, String>()
 		while (r.hasNext()) {
