@@ -17,6 +17,8 @@
 	<string name="all_in_section">Wszystko</string>
 	<string name="favorites">Ulubione</string>
 	<string name="search_guide">Szukaj w programie</string>
+	<string name="guide_search_hint">Wpisz co najmniej 2 znaki, aby szukać w przewodniku.</string>
+	<string name="results_limited">Wyświetlono pierwszych 500 wyników. Wpisz więcej, aby je zawęzić.</string>
 	<string name="no_matches">Brak wyników.</string>
 	<string name="download">Pobierz</string>
 	<string name="downloading">Pobieranie: %1$s</string>

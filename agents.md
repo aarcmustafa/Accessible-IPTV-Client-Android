@@ -52,6 +52,14 @@ cvs-health/android-view-accessibility-techniques.
   main thread during an import (0.2.10 ANR'd when Recently watched redrew the list mid-download).
 - Help text is `res/raw/help.md`, not a string resource: aapt folds string newlines into spaces.
 
+- The guide screens match the iOS client's guide (`Accessible-IPTV-Client-iOS`, App/ProgrammesView.swift):
+  programmes are grouped under a day heading (an accessibility heading, so TalkBack jumps a day at a
+  time), a channel's guide opens at the programme on now with the reader there, a programme that has not
+  started shows its details instead of playing, an empty guide offers Refresh guide, and guide search says
+  what to type and when the list was cut (`Epg.SEARCH_LIMIT`, so message and SQL cannot drift).
+  `ChannelGuideActivity` is that app's Guide > Channel guide picker. New strings for it are copied from
+  the iOS `tools/android_strings.py`, which is the one place both apps' guide wording lives.
+
 - `Stalker.kt` - MAG handshake; channel url is `stalker:<cmd>`, turned into a link per play by `App.resolveUrl` (never play `ch.url` directly; use `Player.open`).
 - Sections live / movies / series (`App.load(section)`); movies and series load only when opened.
   Big lists MUST stream: `Net.forEachObject` + `JsonReader` cache reader. Reading get_vod_streams whole (130 MB) crashed with OOM. `largeHeap` is on.

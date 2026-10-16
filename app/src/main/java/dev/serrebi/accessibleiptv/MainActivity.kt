@@ -95,6 +95,7 @@ class MainActivity : AppCompatActivity() {
 		findViewById<View>(R.id.btnSources).setOnClickListener { startActivity(Intent(this, SourcesActivity::class.java)) }
 		findViewById<View>(R.id.btnOnNow).setOnClickListener { startActivity(ProgrammesActivity.onNow(this)) }
 		findViewById<View>(R.id.btnGuideSearch).setOnClickListener { startActivity(ProgrammesActivity.search(this)) }
+		findViewById<View>(R.id.btnChannelGuide).setOnClickListener { startActivity(Intent(this, ChannelGuideActivity::class.java)) }
 		findViewById<View>(R.id.btnRecordings).setOnClickListener { startActivity(Intent(this, RecordingsActivity::class.java)) }
 		findViewById<View>(R.id.btnMore).setOnClickListener { showMore(it) }
 		findViewById<View>(R.id.btnVoice).setOnClickListener { startVoice() }

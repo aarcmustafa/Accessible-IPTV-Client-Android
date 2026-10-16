@@ -6,7 +6,7 @@ Nyissa meg a Lejátszási listákat. Adjon hozzá Xtream-fiókot, M3U URL-t, M3U
 
 A Keresés felül van. A szakasz összes csoportjában keres; a pontos nevek elöl vannak. A mellette lévő Hang beszéddel tölti ki. A Vissza törli.
 
-Alatta: Élő TV, Filmek, Sorozatok. Utána Lejátszási listák, Most műsoron, Keresés a műsorújságban, Rögzítések, Továbbiak.
+Alatta: Élő TV, Filmek, Sorozatok. Utána Lejátszási listák, Most műsoron, Keresés a műsorújságban, Műsorújság, Rögzítések, Továbbiak.
 
 A csoportok balra, a lista jobbra van. Mindkettőnek van címsora. Egy csoport kiválasztása a listára visz.
 

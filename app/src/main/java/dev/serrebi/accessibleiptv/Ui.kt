@@ -40,7 +40,8 @@ fun bindRow(row: View, speech: String, onClick: () -> Unit, actions: List<RowAct
 	}
 }
 
-fun View.heading() = ViewCompat.setAccessibilityHeading(this, true)
+/** Marks a view as a heading (or clears it: a recycled row must not stay one). */
+fun View.heading(on: Boolean = true) = ViewCompat.setAccessibilityHeading(this, on)
 
 /**
  * The keyboard's Search key (or Enter on a hardware keyboard or remote): put the keyboard

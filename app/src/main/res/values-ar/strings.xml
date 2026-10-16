@@ -17,6 +17,8 @@
 	<string name="all_in_section">الكل</string>
 	<string name="favorites">المفضلة</string>
 	<string name="search_guide">البحث في الدليل</string>
+	<string name="guide_search_hint">اكتب حرفين على الأقل للبحث في الدليل.</string>
+	<string name="results_limited">عرض أول 500 نتيجة. اكتب المزيد لتضييق النتائج.</string>
 	<string name="no_matches">لا نتائج.</string>
 	<string name="download">تنزيل</string>
 	<string name="downloading">جارٍ تنزيل %1$s</string>

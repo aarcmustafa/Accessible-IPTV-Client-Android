@@ -6,7 +6,7 @@ Abra Listas. Adicione um acesso Xtream, uma URL M3U, um arquivo M3U ou um portal
 
 Pesquisar fica no topo. Pesquisa em todos os grupos da seção; nomes exatos vêm primeiro. Voz, ao lado, preenche falando. Voltar limpa.
 
-Abaixo: TV ao vivo, Filmes, Séries. Depois Listas, No ar, Pesquisar no guia, Gravações, Mais.
+Abaixo: TV ao vivo, Filmes, Séries. Depois Listas, No ar, Pesquisar no guia, Guia, Gravações, Mais.
 
 Os grupos ficam à esquerda e a lista à direita. Ambos têm títulos. Escolher um grupo leva você à lista.
 

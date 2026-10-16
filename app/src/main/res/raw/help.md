@@ -6,7 +6,7 @@ Open Playlists. Add an Xtream login, an M3U URL, an M3U file, or a Stalker porta
 
 Search is at the top. It searches every group in the section; exact names come first. Voice, next to it, fills it by speech. Back clears it.
 
-Below: Live TV, Movies, Series. Then Playlists, On now, Guide search, Recordings, More.
+Below: Live TV, Movies, Series. Then Playlists, On now, Guide search, Guide, Recordings, More.
 
 Groups are on the left, the list on the right. Both have headings. Picking a group moves you to the list.
 

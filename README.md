@@ -14,7 +14,7 @@ This is the Android companion to [Accessible IPTV Client](https://github.com/ser
 - Xtream Codes logins, Stalker Portals (portal address and MAC), M3U / M3U Plus playlist URLs, and M3U files stored on the device.
 - Live TV, Movies, and Series, each with groups plus Favourites and All at the top. A series opens to its episodes, in season order.
 - Search at the top of the screen covers every group in the section, with a Voice button that fills it by speech.
-- XMLTV guide (`.xml` and `.xml.gz`), including large multi-hundred-megabyte guides. Each channel says what is on and until when; On Now lists everything airing; Guide Search finds upcoming programmes by title or description.
+- XMLTV guide (`.xml` and `.xml.gz`), including large multi-hundred-megabyte guides. The guide is grouped under a heading for each day, so screen-reader heading navigation jumps a day at a time. Each channel says what is on and until when; **On now** lists everything airing; **Guide search** finds upcoming programmes by title or description; **Guide** picks a channel and reads it.
 - Xtream and Stalker logins find their guide by themselves, and the guide re-imports on its own when the playlist changes.
 - Catch-up playback for channels with an archive (Xtream timeshift and M3U catch-up templates, the same rules as the desktop app).
 - Built-in player with always-visible controls and a full screen mode. It picks an audio description track when a channel has one, in the wording providers actually use, and remembers a track you choose per channel.

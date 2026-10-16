@@ -6,7 +6,7 @@ Otwórz Listy. Dodaj login Xtream, URL M3U, plik M3U lub portal Stalker (adres i
 
 Szukaj jest na górze. Szuka we wszystkich grupach sekcji; dokładne nazwy są pierwsze. Głos obok wypełnia je mową. Wstecz je czyści.
 
-Poniżej: TV na żywo, Filmy, Seriale. Potem Listy, Teraz, Szukaj w programie, Nagrania, Więcej.
+Poniżej: TV na żywo, Filmy, Seriale. Potem Listy, Teraz, Szukaj w programie, Program, Nagrania, Więcej.
 
 Grupy są po lewej, lista po prawej. Obie mają nagłówki. Wybranie grupy przenosi do listy.
 

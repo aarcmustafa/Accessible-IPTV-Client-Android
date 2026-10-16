@@ -6,7 +6,7 @@ Listen öffnen. Einen Xtream-Zugang, eine M3U-URL, eine M3U-Datei oder ein Stalk
 
 Suchen ist oben. Es durchsucht alle Gruppen des Bereichs; exakte Namen zuerst. Sprache daneben füllt es per Spracheingabe. Zurück leert es.
 
-Darunter: Live-TV, Filme, Serien. Dann Listen, Jetzt, Programmsuche, Aufnahmen, Mehr.
+Darunter: Live-TV, Filme, Serien. Dann Listen, Jetzt, Programmsuche, Programm, Aufnahmen, Mehr.
 
 Gruppen stehen links, die Liste rechts. Beide haben Überschriften. Eine Gruppe wählen führt zur Liste.
 

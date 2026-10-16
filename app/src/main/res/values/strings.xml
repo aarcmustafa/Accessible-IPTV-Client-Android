@@ -22,6 +22,8 @@
 	<string name="all_in_section">All</string>
 	<string name="favorites">Favourites</string>
 	<string name="search_guide">Guide search</string>
+	<string name="guide_search_hint">Type at least 2 characters to search the guide.</string>
+	<string name="results_limited">Showing the first 500 results. Type more to narrow them down.</string>
 	<string name="no_matches">No results.</string>
 	<string name="download">Download</string>
 	<string name="downloading">Downloading %1$s</string>

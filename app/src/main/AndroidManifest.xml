@@ -42,6 +42,7 @@
 			android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
 			android:theme="@style/PlayerTheme" />
 		<activity android:name=".ProgrammesActivity" android:windowSoftInputMode="stateHidden" />
+		<activity android:name=".ChannelGuideActivity" android:windowSoftInputMode="stateHidden" />
 		<activity android:name=".SourcesActivity" />
 		<activity android:name=".RecordingsActivity" />
 		<activity android:name=".SettingsActivity" android:windowSoftInputMode="stateHidden" />

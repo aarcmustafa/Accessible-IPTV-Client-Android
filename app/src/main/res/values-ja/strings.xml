@@ -17,6 +17,8 @@
 	<string name="all_in_section">すべて</string>
 	<string name="favorites">お気に入り</string>
 	<string name="search_guide">番組表を検索</string>
+	<string name="guide_search_hint">ガイドを検索するには2文字以上入力してください。</string>
+	<string name="results_limited">最初の500件を表示しています。追加で入力すると絞り込めます。</string>
 	<string name="no_matches">結果なし。</string>
 	<string name="download">ダウンロード</string>
 	<string name="downloading">%1$s をダウンロード中</string>

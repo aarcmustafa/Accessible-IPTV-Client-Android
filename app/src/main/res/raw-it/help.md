@@ -6,7 +6,7 @@ Apri Liste. Aggiungi un accesso Xtream, un URL M3U, un file M3U o un portale Sta
 
 Cerca è in alto. Cerca in tutti i gruppi della sezione; i nomi esatti vengono prima. Voce, accanto, lo compila parlando. Indietro lo svuota.
 
-Sotto: TV in diretta, Film, Serie. Poi Liste, In onda, Cerca nella guida, Registrazioni, Altro.
+Sotto: TV in diretta, Film, Serie. Poi Liste, In onda, Cerca nella guida, Guida, Registrazioni, Altro.
 
 I gruppi sono a sinistra, l’elenco a destra. Entrambi hanno intestazioni. Scegliere un gruppo porta all’elenco.
 

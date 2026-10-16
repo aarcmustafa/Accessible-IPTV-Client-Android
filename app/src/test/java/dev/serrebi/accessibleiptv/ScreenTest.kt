@@ -256,6 +256,133 @@ class ScreenTest {
 		assertTrue(isHeading(a.findViewById(R.id.listHeading)))
 	}
 
+	// ---- Guide (day headings, search, the picker) ----
+
+	private val nowMinute = System.currentTimeMillis() / 60_000 * 60_000
+
+	/** "20261013143000 +0000" for a UTC time, as XMLTV writes it. */
+	private fun xmltv(ms: Long) =
+		java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(java.time.Instant.ofEpochMilli(ms).atOffset(java.time.ZoneOffset.UTC)) + " +0000"
+
+	private fun guideXml(vararg progs: Triple<Long, Long, String>) =
+		"<tv><channel id=\"bbc1.uk\"><display-name>BBC One</display-name></channel>" +
+			progs.joinToString("") { (s, e, t) ->
+				"<programme start=\"${xmltv(s)}\" stop=\"${xmltv(e)}\" channel=\"bbc1.uk\"><title>$t</title><desc>$t details</desc></programme>"
+			} + "</tv>"
+
+	/** One live channel with a guide already imported, ready for a guide screen. */
+	private fun channelGuide(vararg progs: Triple<Long, Long, String>) {
+		server.text("/list.m3u", "#EXTM3U\n#EXTINF:-1 tvg-id=\"bbc1.uk\",BBC One\nhttp://h/1.ts")
+		server.text("/guide.xml", guideXml(*progs))
+		app.prefs.sources = listOf(Source("src", Source.TYPE_M3U, "List", "${server.url}/list.m3u", epgUrl = "${server.url}/guide.xml"))
+		runBlocking { app.load(App.LIVE, false) }
+		runBlocking { app.importGuide { } }
+	}
+
+	/** Today: one programme on now and one later. Tomorrow: one. Rows: Day, P1, P2, Day, P3. */
+	private val threeProgs = arrayOf(
+		Triple(nowMinute - 30 * 60_000L, nowMinute + 30 * 60_000L, "On Now"),
+		Triple(nowMinute + 30 * 60_000L, nowMinute + 60 * 60_000L, "Later"),
+		Triple(nowMinute + 24 * 3_600_000L, nowMinute + 25 * 3_600_000L, "Tomorrow Show"),
+	)
+
+	private fun channelGuideScreen(): Pair<ProgrammesActivity, RecyclerView> {
+		channelGuide(*threeProgs)
+		val a = Robolectric.buildActivity(ProgrammesActivity::class.java, ProgrammesActivity.forChannel(app, app.channels[0])).setup().get()
+		val rv = a.findViewById<RecyclerView>(R.id.list)
+		waitUntil { rv.adapter!!.itemCount == 5 } // Day, P1, P2, Day, P3
+		return a to rv
+	}
+
+	private fun hasText(v: View, text: String): Boolean = when {
+		v is TextView -> v.text?.toString()?.contains(text) == true
+		v is android.view.ViewGroup -> (0 until v.childCount).any { hasText(v.getChildAt(it), text) }
+		else -> false
+	}
+
+	@Test fun eachDayGetsAHeadingSoTalkBackJumpsADayAtATime() {
+		val (a, rv) = channelGuideScreen()
+		rv.scrollToPosition(0)
+		waitUntil { rv.findViewHolderForAdapterPosition(0) != null }
+		val today = Format.date(nowMinute - 30 * 60_000L)
+		val tomorrow = Format.date(nowMinute + 24 * 3_600_000L)
+		// One day's run of programmes, then the next day's, each under its own date.
+		assertEquals(today, rv.findViewHolderForAdapterPosition(0)!!.itemView.contentDescription.toString())
+		assertTrue("the day is a heading", isHeading(rv.findViewHolderForAdapterPosition(0)!!.itemView))
+		assertEquals(
+			"${Format.programme(Programme("k", nowMinute - 30 * 60_000L, nowMinute + 30 * 60_000L, "On Now"))}, ${a.getString(R.string.on_now)}",
+			rv.findViewHolderForAdapterPosition(1)!!.itemView.contentDescription.toString(),
+		)
+		assertTrue("a programme is not a heading", !isHeading(rv.findViewHolderForAdapterPosition(1)!!.itemView))
+		assertEquals(tomorrow, rv.findViewHolderForAdapterPosition(3)!!.itemView.contentDescription.toString())
+		assertTrue(isHeading(rv.findViewHolderForAdapterPosition(3)!!.itemView))
+		assertEquals("a guide with programmes offers no import button", View.GONE, a.findViewById<View>(R.id.buttons).visibility)
+	}
+
+	@Test fun aChannelGuideOpensAtTheProgrammeOnNow() {
+		val (_, rv) = channelGuideScreen()
+		// Not at the top of the archive: the first row on screen is the programme on now, as on iOS.
+		assertEquals(1, rv.getChildAdapterPosition(rv.getChildAt(0)))
+	}
+
+	@Test fun aProgrammeThatHasNotStartedOpensItsDetails() {
+		val (a, rv) = channelGuideScreen()
+		rv.scrollToPosition(4)
+		waitUntil { rv.findViewHolderForAdapterPosition(4) != null }
+		rv.findViewHolderForAdapterPosition(4)!!.itemView.performClick()
+		val dialog = ShadowDialog.getLatestDialog()
+		assertNotNull("a future programme shows its details", dialog)
+		assertTrue(dialog.isShowing)
+		assertTrue("the details name the programme", hasText(dialog.window!!.decorView, "Tomorrow Show"))
+		assertNull("and its row never starts the player", shadowOf(a).nextStartedActivity)
+	}
+
+	@Test fun guideSearchSaysWhatToTypeAndWhenTheListIsCut() {
+		val progs = (1..Epg.SEARCH_LIMIT + 1).map { Triple(nowMinute + 3_600_000L + it * 60_000L, nowMinute + 3_660_000L + it * 60_000L, "News $it") }.toTypedArray()
+		channelGuide(*progs)
+		val a = Robolectric.buildActivity(ProgrammesActivity::class.java, ProgrammesActivity.search(app)).setup().get()
+		val status = a.findViewById<TextView>(R.id.status)
+		val filter = a.findViewById<EditText>(R.id.filter)
+		filter.setText("n")
+		waitUntil { status.text.toString() == a.getString(R.string.guide_search_hint) }
+		filter.setText("news")
+		waitUntil { status.text.toString() == a.getString(R.string.results_limited) }
+		filter.setText("nowhere")
+		waitUntil { status.text.toString() == a.getString(R.string.no_matches) }
+	}
+
+	@Test fun anEmptyGuideOffersToFetchIt() {
+		// A channel with no guide at all: the screen offers the button instead of sitting empty.
+		server.text("/list.m3u", "#EXTM3U\n#EXTINF:-1 tvg-id=\"bbc1.uk\",BBC One\nhttp://h/1.ts")
+		app.prefs.sources = listOf(Source("src", Source.TYPE_M3U, "List", "${server.url}/list.m3u"))
+		runBlocking { app.load(App.LIVE, false) }
+		val a = Robolectric.buildActivity(ProgrammesActivity::class.java, ProgrammesActivity.forChannel(app, app.channels[0])).setup().get()
+		waitUntil { a.findViewById<View>(R.id.buttons).visibility == View.VISIBLE }
+		val bar = a.findViewById<LinearLayout>(R.id.buttons)
+		val button = (0 until bar.childCount).map { bar.getChildAt(it) as Button }.first { it.text == a.getString(R.string.import_guide) }
+		assertTrue(button.isFocusable)
+		// No guide URL in this playlist: pressing it must not claim the guide is ready.
+		button.performClick()
+		waitUntil { a.findViewById<TextView>(R.id.status).text.toString() == a.getString(R.string.no_guide) }
+	}
+
+	@Test fun theChannelGuidePickerOpensAChannelGuide() {
+		channelGuide(Triple(nowMinute - 30 * 60_000L, nowMinute + 30 * 60_000L, "On Now"))
+		val a = Robolectric.buildActivity(ChannelGuideActivity::class.java).setup().get()
+		val rv = a.findViewById<RecyclerView>(R.id.list)
+		waitUntil { rv.findViewHolderForAdapterPosition(0) != null }
+		val row = rv.findViewHolderForAdapterPosition(0)!!.itemView
+		assertTrue("the row names the channel", row.contentDescription.toString().startsWith("BBC One"))
+		assertTrue(
+			"and what is on until when",
+			row.contentDescription.toString().contains(a.getString(R.string.until, "On Now", Format.time(nowMinute + 30 * 60_000L))),
+		)
+		row.performClick()
+		val started = shadowOf(a).nextStartedActivity
+		assertEquals(ProgrammesActivity::class.java.name, started.component?.className)
+		assertEquals(app.channels[0].key, started.getStringExtra("key"))
+	}
+
 	@Test fun recordingsHeadingCountsScheduled() {
 		Recorder.schedule(app, Channel("s", "1", "BBC One", "", "http://h/1.ts"), "News", System.currentTimeMillis() + 3_600_000, System.currentTimeMillis() + 7_200_000)
 		val a = Robolectric.buildActivity(RecordingsActivity::class.java).setup().get()

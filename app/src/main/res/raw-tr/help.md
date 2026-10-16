@@ -6,7 +6,7 @@ Listeler’i açın. Bir Xtream girişi, M3U URL’si, M3U dosyası veya Stalker
 
 Ara en üstte. Bölümdeki tüm gruplarda arar; tam eşleşen adlar önce gelir. Yanındaki Ses, konuşarak doldurur. Geri temizler.
 
-Altında: Canlı TV, Filmler, Diziler. Sonra Listeler, Şimdi yayında, Rehberde ara, Kayıtlar, Diğer.
+Altında: Canlı TV, Filmler, Diziler. Sonra Listeler, Şimdi yayında, Rehberde ara, Rehber, Kayıtlar, Diğer.
 
 Gruplar solda, liste sağda. İkisinin de başlığı var. Bir grup seçmek sizi listeye götürür.
 

@@ -6,7 +6,7 @@ Ouvrez Listes. Ajoutez un compte Xtream, une URL M3U, un fichier M3U ou un porta
 
 Rechercher est en haut. La recherche couvre tous les groupes de la section ; les noms exacts viennent en premier. Voix, à côté, la remplit par la parole. Retour l’efface.
 
-En dessous : TV en direct, Films, Séries. Puis Listes, En ce moment, Recherche dans le guide, Enregistrements, Plus.
+En dessous : TV en direct, Films, Séries. Puis Listes, En ce moment, Recherche dans le guide, Guide, Enregistrements, Plus.
 
 Les groupes sont à gauche, la liste à droite. Les deux ont des titres. Choisir un groupe vous amène à la liste.
 

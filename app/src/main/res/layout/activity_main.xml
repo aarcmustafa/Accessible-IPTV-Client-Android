@@ -58,6 +58,7 @@
 			<Button android:id="@+id/btnSources" style="@style/BarButton" android:text="@string/playlists_and_guides" />
 			<Button android:id="@+id/btnOnNow" style="@style/BarButton" android:text="@string/whats_on_now" />
 			<Button android:id="@+id/btnGuideSearch" style="@style/BarButton" android:text="@string/search_guide" />
+			<Button android:id="@+id/btnChannelGuide" style="@style/BarButton" android:text="@string/channel_guide" />
 			<Button android:id="@+id/btnRecordings" style="@style/BarButton" android:text="@string/recordings" />
 			<Button android:id="@+id/btnMore" style="@style/BarButton" android:text="@string/more" />
 		</LinearLayout>

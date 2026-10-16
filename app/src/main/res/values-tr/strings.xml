@@ -17,6 +17,8 @@
 	<string name="all_in_section">Tümü</string>
 	<string name="favorites">Favoriler</string>
 	<string name="search_guide">Rehberde ara</string>
+	<string name="guide_search_hint">Rehberde aramak için en az 2 karakter yazın.</string>
+	<string name="results_limited">İlk 500 sonuç gösteriliyor. Daraltmak için yazmaya devam edin.</string>
 	<string name="no_matches">Sonuç yok.</string>
 	<string name="download">İndir</string>
 	<string name="downloading">İndiriliyor: %1$s</string>

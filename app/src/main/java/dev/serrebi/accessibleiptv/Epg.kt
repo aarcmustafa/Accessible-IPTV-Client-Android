@@ -87,7 +87,7 @@ class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
 		val like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 		val out = ArrayList<Pair<Programme, Channel>>()
 		readableDatabase.rawQuery(
-			"SELECT ch, start, stop, title, descr FROM prog WHERE stop>? AND (title LIKE ? ESCAPE '\\' OR descr LIKE ? ESCAPE '\\') ORDER BY start LIMIT 500",
+			"SELECT ch, start, stop, title, descr FROM prog WHERE stop>? AND (title LIKE ? ESCAPE '\\' OR descr LIKE ? ESCAPE '\\') ORDER BY start LIMIT $SEARCH_LIMIT",
 			arrayOf(now.toString(), like, like),
 		).use { c ->
 			while (c.moveToNext()) {
@@ -213,5 +213,10 @@ class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
 		}
 		loadIndex()
 		return count
+	}
+
+	companion object {
+		/** [search] gives at most this many rows; the guide screen says so when the list is cut. */
+		const val SEARCH_LIMIT = 500
 	}
 }

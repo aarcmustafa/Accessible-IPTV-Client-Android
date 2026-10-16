@@ -17,6 +17,8 @@
 	<string name="all_in_section">Tudo</string>
 	<string name="favorites">Favoritos</string>
 	<string name="search_guide">Pesquisar no guia</string>
+	<string name="guide_search_hint">Digite pelo menos 2 caracteres para buscar no guia.</string>
+	<string name="results_limited">Mostrando os primeiros 500 resultados. Digite mais para reduzi-los.</string>
 	<string name="no_matches">Nenhum resultado.</string>
 	<string name="download">Baixar</string>
 	<string name="downloading">Baixando %1$s</string>
