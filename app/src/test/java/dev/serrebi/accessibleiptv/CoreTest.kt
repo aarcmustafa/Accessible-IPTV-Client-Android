@@ -31,6 +31,7 @@ class CoreTest {
 		assertEquals("http://a/b.ts", url)
 		assertEquals("VLC", h["User-Agent"])
 		assertEquals("http://x", h["Referer"])
+		assertEquals("a lower-case name is the same header", "Zebra", M3uParser.splitHeaders("http://a/b.ts|user-agent=Zebra").second["User-Agent"])
 	}
 
 	private fun ch(url: String, attrs: Map<String, String>) = Channel("s", "1", "C", "G", url, attrs = attrs)

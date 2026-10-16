@@ -30,12 +30,18 @@ object Xmltv {
 		val h = num(8, 2); val mi = num(10, 2); val s = num(12, 2)
 		if (y < 0 || mo !in 1..12 || d !in 1..31 || h !in 0..23 || mi !in 0..59 || s !in 0..60) return null
 		val dt = runCatching { LocalDateTime.of(y, mo, d, h, mi, minOf(s, 59)) }.getOrNull() ?: return null
+		// "+0200", "-0530" and the occasional "+02:00" all name an offset. Any other tail (a
+		// zone name, junk) still counts as UTC: a guide is not thrown away over it.
 		val off = v.substring(14).trim()
 		var offsetSec = 0
-		if (off.length == 5 && (off[0] == '+' || off[0] == '-')) {
-			val oh = (off[1] - '0') * 10 + (off[2] - '0')
-			val om = (off[3] - '0') * 10 + (off[4] - '0')
-			if (oh in 0..18 && om in 0..59) offsetSec = (oh * 3600 + om * 60) * if (off[0] == '-') -1 else 1
+		val sign = off.firstOrNull()?.takeIf { it == '+' || it == '-' }
+		if (sign != null) {
+			val digits = off.substring(1).replace(":", "")
+			if (digits.length == 4 && digits.all { it.isDigit() }) {
+				val oh = (digits[0] - '0') * 10 + (digits[1] - '0')
+				val om = (digits[2] - '0') * 10 + (digits[3] - '0')
+				if (oh in 0..18 && om in 0..59) offsetSec = (oh * 3600 + om * 60) * if (sign == '-') -1 else 1
+			}
 		}
 		return dt.toEpochSecond(ZoneOffset.UTC) * 1000 - offsetSec * 1000L
 	}

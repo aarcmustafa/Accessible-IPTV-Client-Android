@@ -18,7 +18,7 @@
 	<string name="favorites">Preferiti</string>
 	<string name="search_guide">Cerca nella guida</string>
 	<string name="guide_search_hint">Digita almeno 2 caratteri per cercare nella guida.</string>
-	<string name="results_limited">Primi 500 risultati mostrati. Digita altro testo per restringerli.</string>
+	<string name="results_limited">Primi %1$d risultati mostrati. Digita altro testo per restringerli.</string>
 	<string name="no_matches">Nessun risultato.</string>
 	<string name="download">Scarica</string>
 	<string name="downloading">Scaricamento di %1$s</string>

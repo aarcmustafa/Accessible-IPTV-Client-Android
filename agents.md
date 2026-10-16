@@ -16,7 +16,7 @@ One APK for phones, tablets and Android TV, Android 10 (API 29) and up.
 - `local.properties` needs `sdk.dir` with forward slashes (`C\:/...`); backslashes break Gradle with
   "filename, directory name, or volume label syntax is incorrect".
 - Release is signed with the owner's debug keystore (same key as Beluga, cert SHA-256 e686d194...10ca) so in-app updates install over each other. A build machine without that key makes APKs that cannot update installed copies.
-- Updates: `Updater.kt` reads GitHub Releases of serrebidev/Accessible-IPTV-Client-Android, takes the .apk asset, checks GitHub's sha256 digest, installs via PackageInstaller. Tag = `v` + versionName.
+- Updates: `Updater.kt` reads GitHub Releases of serrebidev/Accessible-IPTV-Client-Android, takes the .apk asset, requires the published sha256 digest (a release without one is refused), installs via PackageInstaller. Tag = `v` + versionName.
 
 ## Accessibility rules (non-negotiable)
 
@@ -35,7 +35,9 @@ cvs-health/android-view-accessibility-techniques.
 
 ## Layout
 
-- `App.kt` - process state: channel list (cached per source as JSON in filesDir), guide.
+- `App.kt` - process state: channel list (cached per source as JSON in filesDir, written temp+rename), guide.
+  An empty fetch never overwrites a cache that has channels; a damaged cache is fetched again. When channel
+  ids change, favourites, remembered tracks, recent and schedules move by stream URL (`migrateKeys`).
 - `Epg.kt` - SQLite guide. Import streams XMLTV (gzip sniffed), keeps only guide channels a playlist channel matches (tvg-id, then `Xmltv.nameKey`), within the catch-up window to `epgDaysAhead`.
 - `Xtream.kt` - player_api. Live URLs use `.ts`: Dispatcharr answers `.m3u8` with HTTP 500.
 - `Catchup.kt`, `AudioTracks.kt`, `M3uParser.kt`, `Xmltv.kt` - pure Kotlin ports of desktop rules; covered by `ParsingTest`.
@@ -44,8 +46,9 @@ cvs-health/android-view-accessibility-techniques.
 - `Recorder.kt` - specialUse foreground service writes `.ts` to MediaStore `Movies/AccessibleIPTV`; reconnects drops until the end time.
   Not dataSync: Android 15 stops dataSync after 6 h a day. `USE_EXACT_ALARM` (sideloaded, no Play policy) keeps exact alarms on
   Android 14+, where `SCHEDULE_EXACT_ALARM` is denied by default; without an exact alarm the background service start is refused.
+  The copy loop holds a partial wake lock (screen off starves it otherwise); a schedule that cannot start stays listed and notifies.
 - Guide import builds `prog_new`/`gch_new` and swaps on success: a failed download keeps the old guide.
-  An import with no guide URL does nothing at all (it used to swap in empty tables and wipe the guide); a
+  An import with no guide URL, or none with channels to match, does nothing at all (it used to swap in empty tables and wipe the guide); a
   finished import counts as fresh for a day even when nothing matched, so a huge guide is not re-fetched on
   every load (`Epg.hasGuide` is false then — do not gate staleness on it).
   The guide DB is WAL and `import` locks a private object, never the helper: channel rows read now/next on the
@@ -56,7 +59,8 @@ cvs-health/android-view-accessibility-techniques.
   programmes are grouped under a day heading (an accessibility heading, so TalkBack jumps a day at a
   time), a channel's guide opens at the programme on now with the reader there, a programme that has not
   started shows its details instead of playing, an empty guide offers Refresh guide, and guide search says
-  what to type and when the list was cut (`Epg.SEARCH_LIMIT`, so message and SQL cannot drift).
+  what to type and when the list was cut (`Epg.SEARCH_LIMIT`, so message and SQL cannot drift; the string takes the number).
+  The picker (`ChannelGuideActivity`) filters off the main thread and announces its channel count when it loads.
   `ChannelGuideActivity` is that app's Guide > Channel guide picker. New strings for it are copied from
   the iOS `tools/android_strings.py`, which is the one place both apps' guide wording lives.
 
@@ -66,6 +70,7 @@ cvs-health/android-view-accessibility-techniques.
 - Cast: `CastPlayer.Builder(ctx).setLocalPlayer(exo)` wraps the local player and transfers by itself; skipped when Play services are missing.
 
 - Player status lines go through `say(text, priority)`: spoken only up to Settings, Announcements (desktop levels 1-3).
+  The status line stays visible in full screen, so its live region keeps announcing there.
 - Debug builds log buffer depth every 2 s (tag AiptvPlayer, `beat`): tells a slow feed from a delivery gap.
 - Quick start (0.2.10): playback starts on 0.5 s buffered (`Cushion.QUICK_START_SECONDS`), then plays at 0.95 until the
   Settings buffer (default 25 s for every provider; saved defaults 6/10 read as 25, max 18 reads as 30) is held, then 1.0. Other
@@ -73,6 +78,7 @@ cvs-health/android-view-accessibility-techniques.
   cushion. Live TS arrives at real time, so slow play is the only way a player cushion grows. Sky Crime on the TV:
   start 4.9 s, 0 stalls, 10 s cushion at ~165 s. Cold IPTVCanada tunes can take ~12 s server-side (provider TTFB).
 - Player: live channels reconnect like the desktop (`Reconnect`: 0.4, 2, 4, 8, 8, 8 s, reset after 2 min); catch-up and files do not.
+  A reconnect starts with the quick-start buffer and never grows the cushion; ExoPlayer holds audio focus and stops on headphones unplug (0.2.16).
 - Player traps: keep `FLAG_DETECT_ACCESS_UNITS` on the TS extractor (re-encoded IPTV H.264 has no AUD NALs -> audio only without it). Live streams arrive at real time: keep the short rebuffer target in `DefaultLoadControl`.
 - Edge to edge: `App.keepContentClearOfSystemBars()` pads every activity's content by bars/cutout/IME. Do not remove; Samsung's taskbar covered the player buttons.
 

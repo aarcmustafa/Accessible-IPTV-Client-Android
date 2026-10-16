@@ -117,17 +117,26 @@ object M3uParser {
 		return plain + "|" + merged.entries.joinToString("&") { "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}" }
 	}
 
-	/** Splits Kodi-style "url|User-Agent=x&Referer=y" into the URL and its headers. */
+	/**
+	 * Splits Kodi-style "url|User-Agent=x&Referer=y" into the URL and its headers.
+	 * Header names are canonicalised: a hand-written "user-agent" must be the same header
+	 * as the "User-Agent" the player looks up, not a second one.
+	 */
 	fun splitHeaders(url: String): Pair<String, Map<String, String>> {
 		val bar = url.indexOf('|')
 		if (bar < 0) return url to emptyMap()
 		val headers = url.substring(bar + 1).split('&').mapNotNull { part ->
 			val eq = part.indexOf('=')
 			if (eq <= 0) null else {
-				val k = part.substring(0, eq).trim().let { if (it.equals("UA", true)) "User-Agent" else it }
+				val k = part.substring(0, eq).trim().let { canonicalHeaders[it.lowercase()] ?: it }
 				k to runCatching { java.net.URLDecoder.decode(part.substring(eq + 1), "UTF-8") }.getOrDefault(part.substring(eq + 1))
 			}
 		}.toMap()
 		return url.substring(0, bar) to headers
 	}
+
+	private val canonicalHeaders = mapOf(
+		"ua" to "User-Agent", "user-agent" to "User-Agent", "referer" to "Referer", "referrer" to "Referer",
+		"origin" to "Origin", "cookie" to "Cookie",
+	)
 }

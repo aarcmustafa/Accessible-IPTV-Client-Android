@@ -244,5 +244,33 @@ class AppTest {
 		val n = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications
 		assertEquals(1, n.size)
 		assertEquals(app.getString(R.string.recording_failed, "Gone TV"), n[0].extras.getCharSequence("android.title").toString())
+		assertEquals("a schedule that could not start stays visible instead of vanishing", 1, Recorder.scheduled(app).size)
+	}
+
+	@Test fun schedulingTheSameProgrammeTwiceRecordsItOnce() {
+		load()
+		val start = System.currentTimeMillis() + 3_600_000
+		Recorder.schedule(app, app.channels[0], "News", start, start + 1_800_000)
+		Recorder.schedule(app, app.channels[0], "News", start, start + 1_800_000)
+		assertEquals(1, Recorder.scheduled(app).size)
+	}
+
+	@Test fun renumberedChannelsKeepSchedulesTracksAndRecent() {
+		load()
+		val bbc = app.channels.first { it.name == "BBC One" }
+		app.prefs.toggleFavorite(bbc.key)
+		app.prefs.rememberTrack(bbc.key, "English")
+		app.prefs.addRecent(bbc.key)
+		val start = System.currentTimeMillis() + 3_600_000
+		Recorder.schedule(app, bbc, "News", start, start + 1_800_000)
+		// The provider renumbers its ids: same streams, new keys.
+		server.text("/list.m3u", playlist.replace("tvg-id=\"bbc1.uk\"", "tvg-id=\"bbc1.new\""))
+		load(force = true)
+		val moved = app.channels.first { it.name == "BBC One" }
+		assertTrue(bbc.key != moved.key)
+		assertTrue("the favourite followed", moved.key in app.prefs.favorites)
+		assertEquals("the remembered track followed", "English", app.prefs.rememberedTrack(moved.key))
+		assertEquals("recent followed", moved.key, app.prefs.recent.first())
+		assertEquals("the scheduled recording followed", moved.key, Recorder.scheduled(app).single().channelKey)
 	}
 }

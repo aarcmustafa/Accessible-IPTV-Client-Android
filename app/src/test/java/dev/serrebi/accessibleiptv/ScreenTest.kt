@@ -346,7 +346,7 @@ class ScreenTest {
 		filter.setText("n")
 		waitUntil { status.text.toString() == a.getString(R.string.guide_search_hint) }
 		filter.setText("news")
-		waitUntil { status.text.toString() == a.getString(R.string.results_limited) }
+		waitUntil { status.text.toString() == a.getString(R.string.results_limited, Epg.SEARCH_LIMIT) }
 		filter.setText("nowhere")
 		waitUntil { status.text.toString() == a.getString(R.string.no_matches) }
 	}
@@ -449,5 +449,21 @@ class ScreenTest {
 		val a = player("${server.url}/arch.ts", app.channels[0].key, catchup = true).setup().get()
 		val pause = a.findViewById<Button>(R.id.btnPause)
 		waitUntil(10_000) { pause.text.toString() == a.getString(R.string.retry) }
+	}
+
+	@Test fun aRecordingInProgressMakesTheRecordButtonStopIt() {
+		playlist("#EXTM3U\n#EXTINF:-1,BBC One\n${server.url}/live.ts")
+		runBlocking { app.load(App.LIVE, false) }
+		val key = app.channels[0].key
+		Recorder.active[key] = Recorder.Active(key, "BBC One", key, 0, 0)
+		try {
+			val a = player("${server.url}/live.ts", key).setup().get()
+			val record = a.findViewById<Button>(R.id.btnRecord)
+			assertEquals(a.getString(R.string.stop_recording_channel), record.text.toString())
+			record.performClick()
+			val sent = shadowOf(a).nextStartedService
+			assertEquals(RecordService.ACTION_STOP_ONE, sent.action)
+			assertEquals(key, sent.getStringExtra("key"))
+		} finally { Recorder.active.clear() }
 	}
 }

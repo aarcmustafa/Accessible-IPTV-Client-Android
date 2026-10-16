@@ -23,7 +23,7 @@
 	<string name="favorites">Favourites</string>
 	<string name="search_guide">Guide search</string>
 	<string name="guide_search_hint">Type at least 2 characters to search the guide.</string>
-	<string name="results_limited">Showing the first 500 results. Type more to narrow them down.</string>
+	<string name="results_limited">Showing the first %1$d results. Type more to narrow them down.</string>
 	<string name="no_matches">No results.</string>
 	<string name="download">Download</string>
 	<string name="downloading">Downloading %1$s</string>
@@ -145,7 +145,7 @@
 	<string name="stop_all_recordings">Stop all</string>
 	<string name="stop_recording">Stop</string>
 	<string name="recordings_stopped">Stopped.</string>
-	<string name="recordings_heading">%1$d recording, %2$d scheduled, %3$d saved</string>
+	<string name="recordings_heading">%1$d in progress, %2$d scheduled, %3$d saved</string>
 	<string name="scheduled_for">%1$s to %2$s</string>
 	<string name="saved_on" translatable="false">%1$s</string>
 	<string name="cancel_recording">Cancel recording</string>

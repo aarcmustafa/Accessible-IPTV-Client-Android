@@ -242,4 +242,72 @@ class AuditTest {
 			assertEquals(listOf("New"), app.channels.map { it.name })
 		} finally { controller.pause().stop().destroy() }
 	}
+
+	@Test fun aDamagedCacheIsFetchedAgainInsteadOfEmptyingTheSection() {
+		val src = Source("s", Source.TYPE_M3U, "List", "${server.url}/list")
+		app.prefs.sources = listOf(src)
+		server.text("/list", "#EXTM3U\n#EXTINF:-1,News\nhttp://h/1.ts")
+		runBlocking { app.load(App.LIVE, true) }
+		// What a killed process leaves behind: a fresh by age, unreadable cache file.
+		java.io.File(app.filesDir, "channels_s_live.json").writeText("[{\"s\":\"s\",\"i\":\"1\"")
+		val errors = runBlocking { app.load(App.LIVE, false) }
+		assertEquals(emptyList<String>(), errors)
+		assertEquals(listOf("News"), app.channels.map { it.name })
+	}
+
+	@Test fun anEmptyProviderAnswerKeepsCachedChannels() {
+		app.prefs.sources = listOf(Source("s", Source.TYPE_XTREAM, "List", server.url, "u", "p"))
+		server.on("/player_api.php") { ex ->
+			ex.reply(200, if (ex.query()["action"] == "get_live_streams") """[{"stream_id":1,"name":"News"}]""" else "[]")
+		}
+		runBlocking { app.load(App.LIVE, true) }
+		// Expired credentials answer with an empty array instead of an error.
+		server.on("/player_api.php") { ex -> ex.reply(200, "[]") }
+		assertEquals(1, runBlocking { app.load(App.LIVE, true) }.size)
+		assertEquals(listOf("News"), app.channels.map { it.name })
+	}
+
+	@Test fun anImportWithoutChannelsKeepsTheGuide() {
+		val now = System.currentTimeMillis()
+		fun xmltv(ms: Long) =
+			java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(java.time.Instant.ofEpochMilli(ms).atOffset(java.time.ZoneOffset.UTC)) + " +0000"
+		val src = Source("s", Source.TYPE_M3U, "List", "${server.url}/list", epgUrl = "${server.url}/guide")
+		app.prefs.sources = listOf(src)
+		server.text("/list", "#EXTM3U\n#EXTINF:-1 tvg-id=\"news\",News\nhttp://h/1.ts")
+		server.text(
+			"/guide",
+			"<tv><channel id=\"news\"><display-name>News</display-name></channel>" +
+				"<programme channel=\"news\" start=\"${xmltv(now - 3_600_000)}\" stop=\"${xmltv(now + 3_600_000)}\"><title>Now</title></programme></tv>",
+		)
+		runBlocking { app.load(App.LIVE, true) }
+		runBlocking { app.importGuide { } }
+		val ch = Channel("s", "1", "News", "", "http://h/1.ts", "news")
+		assertEquals(1, app.epg.schedule(ch, 0, Long.MAX_VALUE).size)
+		// "Refresh guide" pressed while the playlist failed to load: no channels to match,
+		// so the import must do nothing instead of swapping in empty tables.
+		@Suppress("UNCHECKED_CAST")
+		(App::class.java.getDeclaredField("lists").apply { isAccessible = true }.get(app) as MutableMap<String, *>).clear()
+		assertEquals(0, runBlocking { app.importGuide { } })
+		assertEquals("the guide the user had survives", 1, app.epg.schedule(ch, 0, Long.MAX_VALUE).size)
+	}
+
+	@Test fun deletingAPlaylistDropsItsFavouritesSchedulesAndTracks() {
+		val src = Source("s", Source.TYPE_M3U, "List", "${server.url}/list")
+		app.prefs.sources = listOf(src)
+		server.text("/list", "#EXTM3U\n#EXTINF:-1,News\nhttp://h/1.ts")
+		runBlocking { app.load(App.LIVE, true) }
+		val ch = app.channels.single()
+		app.prefs.toggleFavorite(ch.key)
+		app.prefs.rememberTrack(ch.key, "English")
+		app.prefs.addRecent(ch.key)
+		Recorder.schedule(app, ch, "News", System.currentTimeMillis() + 3_600_000, System.currentTimeMillis() + 7_200_000)
+		// What SourcesActivity's delete does.
+		app.prefs.removeSource(src.id)
+		app.prefs.dropChannelKeys("${src.id}:")
+		Recorder.dropSource(app, src.id)
+		assertEquals(emptySet<String>(), app.prefs.favorites)
+		assertNull(app.prefs.rememberedTrack(ch.key))
+		assertEquals(emptyList<String>(), app.prefs.recent)
+		assertEquals(emptyList<Recorder.Scheduled>(), Recorder.scheduled(app))
+	}
 }

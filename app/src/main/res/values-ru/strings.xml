@@ -18,7 +18,7 @@
 	<string name="favorites">Избранное</string>
 	<string name="search_guide">Поиск по программе</string>
 	<string name="guide_search_hint">Введите хотя бы 2 символа для поиска по телегиду.</string>
-	<string name="results_limited">Показаны первые 500 результатов. Введите ещё, чтобы сузить поиск.</string>
+	<string name="results_limited">Показаны первые %1$d результатов. Введите ещё, чтобы сузить поиск.</string>
 	<string name="no_matches">Ничего не найдено.</string>
 	<string name="download">Скачать</string>
 	<string name="downloading">Скачивание: %1$s</string>

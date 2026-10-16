@@ -18,7 +18,7 @@
 	<string name="favorites">Favoris</string>
 	<string name="search_guide">Recherche dans le guide</string>
 	<string name="guide_search_hint">Tapez au moins 2 caractères pour chercher dans le guide.</string>
-	<string name="results_limited">Affichage des 500 premiers résultats. Tapez plus de texte pour les réduire.</string>
+	<string name="results_limited">Affichage des %1$d premiers résultats. Tapez plus de texte pour les réduire.</string>
 	<string name="no_matches">Aucun résultat.</string>
 	<string name="download">Télécharger</string>
 	<string name="downloading">Téléchargement de %1$s</string>

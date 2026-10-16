@@ -149,6 +149,8 @@ object Recorder {
 			(System.currentTimeMillis() % Int.MAX_VALUE).toInt(), ch.key, ch.name, title,
 			start - prefs.prePadMinutes * 60_000L, end + prefs.postPadMinutes * 60_000L,
 		)
+		// The same programme scheduled twice must not be recorded twice.
+		if (scheduled(c).any { it.channelKey == s.channelKey && it.start == s.start && it.end == s.end }) return
 		save(c, scheduled(c) + s)
 		arm(c, s)
 		askNotifications(c)
@@ -168,8 +170,8 @@ object Recorder {
 		}
 	}
 
-	/** A scheduled recording that could not start says so, instead of silently not existing. */
-	private fun failed(c: Context, name: String) {
+	/** A recording that could not start or run says so, instead of silently not existing. */
+	fun failed(c: Context, name: String) {
 		runCatching {
 			c.getSystemService(NotificationManager::class.java).notify(
 				name.hashCode(),
@@ -184,6 +186,23 @@ object Recorder {
 		c.getSystemService(AlarmManager::class.java).cancel(alarmIntent(c, id))
 	}
 
+	/** Moves scheduled recordings when channel ids changed under them (provider renumbering). */
+	fun remap(c: Context, moved: Map<String, String>) {
+		val all = scheduled(c)
+		val changed = all.map { if (it.channelKey in moved) it.copy(channelKey = moved.getValue(it.channelKey)) else it }
+		if (changed != all) save(c, changed)
+	}
+
+	/** Drops a removed playlist's schedules and their alarms. */
+	fun dropSource(c: Context, sourceId: String) {
+		val prefix = "$sourceId:"
+		val all = scheduled(c)
+		val gone = all.filter { it.channelKey.startsWith(prefix) }
+		if (gone.isEmpty()) return
+		save(c, all - gone.toSet())
+		gone.forEach { c.getSystemService(AlarmManager::class.java).cancel(alarmIntent(c, it.id)) }
+	}
+
 	private fun alarmIntent(c: Context, id: Int) = PendingIntent.getBroadcast(
 		c, id, Intent(c, AlarmReceiver::class.java).putExtra("id", id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
 	)
@@ -191,7 +210,6 @@ object Recorder {
 	class AlarmReceiver : BroadcastReceiver() {
 		override fun onReceive(c: Context, intent: Intent) {
 			val s = scheduled(c).firstOrNull { it.id == intent.getIntExtra("id", -1) } ?: return
-			save(c, scheduled(c).filter { it.id != s.id })
 			val app = App.of(c)
 			// A cold process has to read the channel cache first; that is too slow for onReceive.
 			val pending = goAsync()
@@ -201,7 +219,12 @@ object Recorder {
 						kotlinx.coroutines.runBlocking { app.load(App.LIVE, false) }
 						app.channel(s.channelKey)
 					}
-					if (ch != null) start(c, ch, s.title, s.end) else failed(c, s.name)
+					if (ch != null) {
+						start(c, ch, s.title, s.end)
+						// Only a recording that really started is done with; a failed one stays on
+						// the Recordings screen instead of vanishing without a trace.
+						save(c, scheduled(c).filter { it.id != s.id })
+					} else failed(c, s.name)
 				} catch (e: Exception) {
 					// Android refused the background start (no exact-alarm exemption) or the playlist could not load.
 					failed(c, s.name)
@@ -217,8 +240,15 @@ class RecordService : Service() {
 	private val jobs = ConcurrentHashMap<String, Thread>()
 	private val cancelled: MutableSet<String> = ConcurrentHashMap.newKeySet()
 	@Volatile private var stopping = false
+	private var wake: android.os.PowerManager.WakeLock? = null
 
 	override fun onBind(intent: Intent?): IBinder? = null
+
+	override fun onDestroy() {
+		wake?.release()
+		wake = null
+		super.onDestroy()
+	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		if (intent?.action == ACTION_STOP) {
@@ -240,6 +270,13 @@ class RecordService : Service() {
 			if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0,
 		)
 		if (jobs.containsKey(key)) return START_NOT_STICKY
+		// A foreground service keeps the process alive, not the CPU: without a wake lock the
+		// copy loop starves once the screen is off. 12 h cap; onDestroy always releases.
+		if (wake == null) {
+			wake = getSystemService(android.os.PowerManager::class.java)
+				.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "dev.serrebi.accessibleiptv:recorder")
+				.also { it.setReferenceCounted(false); it.acquire(12 * 60 * 60 * 1000L) }
+		}
 		val url = intent.getStringExtra("url").orEmpty()
 		val title = intent.getStringExtra("title").orEmpty()
 		val end = intent.getLongExtra("end", 0)
@@ -252,18 +289,20 @@ class RecordService : Service() {
 	}
 
 	private fun record(key: String, name: String, title: String, url: String, end: Long, expect: Long) {
+		val label = listOf(name, title).filter { it.isNotBlank() }.joinToString(" - ")
 		val real = if (!url.startsWith(Channel.STALKER_SCHEME)) url else runCatching {
 			val app = App.of(this)
 			app.resolveUrl(app.channel(key)!!)
 		}.getOrNull()
 		if (real == null) {
+			// A portal link that could not be issued must not look like a recording that is running.
+			Recorder.failed(this, label)
 			jobs.remove(key)
 			Recorder.active.remove(key)
 			if (jobs.isEmpty()) stopSelf()
 			return
 		}
 		val (plain, headers) = M3uParser.splitHeaders(real)
-		val label = listOf(name, title).filter { it.isNotBlank() }.joinToString(" - ")
 		val fileName = "${label.replace(Regex("[\\\\/:*?\"<>|]"), "_")} ${Format.dateTime(System.currentTimeMillis()).replace(Regex("[\\\\/:]"), "-")}.ts"
 		val values = ContentValues().apply {
 			put(MediaStore.Video.Media.DISPLAY_NAME, fileName)

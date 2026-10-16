@@ -11,7 +11,7 @@ object Net {
 	const val USER_AGENT = "AccessibleIPTV-Android/0.1"
 
 	/** Opens [url] following redirects; gzip bodies are unwrapped by sniffing the magic bytes. */
-	fun open(url: String, headers: Map<String, String> = emptyMap()): InputStream {
+	fun open(url: String, headers: Map<String, String> = emptyMap(), onResponse: ((HttpURLConnection) -> Unit)? = null): InputStream {
 		var current = url
 		repeat(5) {
 			val c = URL(current).openConnection() as HttpURLConnection
@@ -27,6 +27,7 @@ object Net {
 				return@repeat
 			}
 			if (code !in 200..299) { c.disconnect(); throw IOException("Server answered $code") }
+			onResponse?.invoke(c)
 			val input = BufferedInputStream(c.inputStream, 64 * 1024)
 			input.mark(2)
 			val gz = input.read() == 0x1f && input.read() == 0x8b
@@ -36,7 +37,14 @@ object Net {
 		throw IOException("Too many redirects")
 	}
 
-	fun text(url: String): String = open(url).use { it.readBytes().toString(Charsets.UTF_8) }
+	/** The whole body as text; a playlist that names its encoding in Content-Type is read in it. */
+	fun text(url: String): String {
+		var charset = Charsets.UTF_8
+		return open(url, onResponse = { c ->
+			Regex("charset\\s*=\\s*\"?([^;\"\\s]+)", RegexOption.IGNORE_CASE).find(c.contentType.orEmpty())
+				?.groupValues?.get(1)?.let { name -> runCatching { charset = java.nio.charset.Charset.forName(name) } }
+		}).use { it.readBytes().toString(charset) }
+	}
 
 	/**
 	 * Streams a JSON array of objects, handing each object's flat fields to [each] as strings.

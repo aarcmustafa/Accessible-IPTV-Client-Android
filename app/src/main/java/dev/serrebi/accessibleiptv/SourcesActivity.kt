@@ -59,9 +59,11 @@ class SourcesActivity : ListScreen() {
 	}
 
 	private fun save(src: Source) {
-		app.prefs.sources = app.prefs.sources.filter { it.id != src.id } + src
+		val old = app.source(src.id)
+		app.prefs.upsertSource(src)
 		app.forgetCache(src)
-		app.prefs.lastEpgImport = 0 // new source, new guide
+		// A new address or guide URL needs a fresh import; a rename must not re-download 100 MB.
+		if (old == null || old.url != src.url || old.epgUrl != src.epgUrl) app.prefs.lastEpgImport = 0
 		changed = true
 		refresh()
 		status.status(getString(R.string.source_saved, src.name))
@@ -140,8 +142,11 @@ class SourcesActivity : ListScreen() {
 	private fun confirmDelete(s: Source) {
 		AlertDialog.Builder(this).setTitle(R.string.delete).setMessage(getString(R.string.delete_source_q, s.name))
 			.setPositiveButton(R.string.delete) { _, _ ->
-				app.prefs.sources = app.prefs.sources.filter { it.id != s.id }
+				app.prefs.removeSource(s.id)
 				app.forgetCache(s)
+				// A deleted playlist must not leave favourites, track choices or alarms behind.
+				app.prefs.dropChannelKeys("${s.id}:")
+				Recorder.dropSource(this, s.id)
 				changed = true
 				refresh()
 				status.status(getString(R.string.source_deleted, s.name))

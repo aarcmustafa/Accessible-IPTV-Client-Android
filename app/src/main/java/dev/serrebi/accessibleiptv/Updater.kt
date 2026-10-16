@@ -53,6 +53,8 @@ object Updater {
 
 	/** Downloads the APK into the cache and verifies it. Blocking. */
 	fun download(c: Context, r: Release): File {
+		// A release without a published digest cannot be verified: refuse it rather than install blind.
+		val want = r.sha256 ?: throw IOException("The release has no checksum")
 		val f = File(c.cacheDir, "update.apk")
 		val md = MessageDigest.getInstance("SHA-256")
 		Net.open(r.apkUrl).use { input ->
@@ -67,7 +69,7 @@ object Updater {
 			}
 		}
 		val got = md.digest().joinToString("") { "%02x".format(it) }
-		if (r.sha256 != null && !got.equals(r.sha256, true)) {
+		if (!got.equals(want, true)) {
 			f.delete()
 			throw IOException("Checksum mismatch")
 		}

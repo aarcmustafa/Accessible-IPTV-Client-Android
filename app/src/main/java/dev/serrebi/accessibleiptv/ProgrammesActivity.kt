@@ -77,7 +77,7 @@ class ProgrammesActivity : ListScreen() {
 					status.status(when {
 						q.isEmpty() -> ""
 						q.length < 2 -> getString(R.string.guide_search_hint)
-						all.size >= Epg.SEARCH_LIMIT -> getString(R.string.results_limited)
+						all.size >= Epg.SEARCH_LIMIT -> getString(R.string.results_limited, Epg.SEARCH_LIMIT)
 						all.isEmpty() -> getString(R.string.no_matches)
 						else -> resources.getQuantityString(R.plurals.programme_count, all.size, all.size)
 					})
@@ -92,6 +92,12 @@ class ProgrammesActivity : ListScreen() {
 			loadGuide()
 			startAtNow()
 		}
+	}
+
+	override fun onResume() {
+		super.onResume()
+		// "On now" and the catch-up window go stale while the screen is away.
+		if (this::adapter.isInitialized) adapter.notifyDataSetChanged()
 	}
 
 	/** Reads this screen's guide rows and shows them. Call from the main thread. */
@@ -216,13 +222,18 @@ class ProgrammesActivity : ListScreen() {
 	}
 
 	private fun schedule(p: Programme, ch: Channel) {
-		if (!Recorder.canScheduleExact(this)) {
-			// Exact alarms need the user's say-so on Android 12+; without it the start may drift.
-			status.status(getString(R.string.exact_alarm_needed))
-			runCatching { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:$packageName"))) }
-		}
+		val alarms = !Recorder.canScheduleExact(this)
 		Recorder.schedule(this, ch, p.title, p.start, p.stop)
-		status.status(getString(R.string.recording_scheduled, p.title, Format.dateTime(p.start)))
+		// One status line: two writes in the same frame would leave only the last one announced,
+		// so the alarm warning was never heard. Exact alarms need the user's say-so on
+		// Android 12+; without it the start may drift.
+		status.status(
+			listOf(
+				getString(R.string.recording_scheduled, p.title, Format.dateTime(p.start)),
+				if (alarms) getString(R.string.exact_alarm_needed) else "",
+			).filter { it.isNotEmpty() }.joinToString(" "),
+		)
+		if (alarms) runCatching { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:$packageName"))) }
 	}
 
 	companion object {

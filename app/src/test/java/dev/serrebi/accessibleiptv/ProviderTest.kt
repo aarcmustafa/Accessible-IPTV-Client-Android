@@ -208,6 +208,12 @@ class ProviderTest {
 			assertEquals("Checksum mismatch", e.message)
 			assertFalse("a bad download is not left for the installer", java.io.File(ctx.cacheDir, "update.apk").exists())
 		}
+		try {
+			Updater.download(ctx, Updater.Release("9.9.9", "${server.url}/app.apk", null, ""))
+			fail()
+		} catch (e: IOException) {
+			assertEquals("a release without a digest is never installed blind", "The release has no checksum", e.message)
+		}
 	}
 
 	@Test fun stalkerChannelOfflineLinkIsAnError() {

@@ -18,7 +18,7 @@
 	<string name="favorites">पसंदीदा</string>
 	<string name="search_guide">गाइड में खोजें</string>
 	<string name="guide_search_hint">गाइड में खोजने के लिए कम से कम 2 अक्षर लिखें।</string>
-	<string name="results_limited">पहले 500 परिणाम दिखाए जा रहे हैं। और लिखकर इन्हें कम करें।</string>
+	<string name="results_limited">पहले %1$d परिणाम दिखाए जा रहे हैं। और लिखकर इन्हें कम करें।</string>
 	<string name="no_matches">कोई परिणाम नहीं।</string>
 	<string name="download">डाउनलोड</string>
 	<string name="downloading">डाउनलोड हो रहा है: %1$s</string>

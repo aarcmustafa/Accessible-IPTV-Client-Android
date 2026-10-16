@@ -18,7 +18,7 @@
 	<string name="favorites">Kedvencek</string>
 	<string name="search_guide">Keresés a műsorújságban</string>
 	<string name="guide_search_hint">Írjon be legalább 2 karaktert a műsorújság kereséséhez.</string>
-	<string name="results_limited">Az első 500 találat látható. Írjon be többet a szűkítéshez.</string>
+	<string name="results_limited">Az első %1$d találat látható. Írjon be többet a szűkítéshez.</string>
 	<string name="no_matches">Nincs találat.</string>
 	<string name="download">Letöltés</string>
 	<string name="downloading">Letöltés: %1$s</string>

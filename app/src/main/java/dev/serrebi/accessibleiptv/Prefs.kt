@@ -22,10 +22,42 @@ class Prefs(context: Context) {
 		get() = sp.getStringSet("favorites", emptySet())!!.toSet()
 		set(v) = sp.edit { putStringSet("favorites", v) }
 
-	fun toggleFavorite(key: String): Boolean {
+	@Synchronized fun toggleFavorite(key: String): Boolean {
 		val now = key !in favorites
 		favorites = if (now) favorites + key else favorites - key
 		return now
+	}
+
+	/** Saves a source; one place, so a background fetch cannot lose an edit made meanwhile. */
+	@Synchronized fun upsertSource(src: Source) { sources = sources.filter { it.id != src.id } + src }
+
+	@Synchronized fun removeSource(id: String) { sources = sources.filter { it.id != id } }
+
+	@Synchronized fun setSourceEpgUrl(id: String, url: String) { sources = sources.map { if (it.id == id) it.copy(epgUrl = url) else it } }
+
+	/** Moves favourites, remembered tracks and recent keys after the channel ids changed. */
+	@Synchronized fun remapChannelKeys(moved: Map<String, String>) {
+		if (moved.isEmpty()) return
+		favorites = favorites.mapTo(HashSet()) { moved[it] ?: it }
+		recent = recent.map { moved[it] ?: it }
+		val t = tracks
+		if (t.length() > 0) {
+			val out = JSONObject()
+			for (k in t.keys()) out.put(moved[k] ?: k, t.getString(k))
+			sp.edit { putString("channelTracks", out.toString()) }
+		}
+	}
+
+	/** Drops a deleted playlist's favourites, remembered tracks and recent keys. */
+	@Synchronized fun dropChannelKeys(prefix: String) {
+		favorites = favorites.filterNot { it.startsWith(prefix) }.toSet()
+		recent = recent.filterNot { it.startsWith(prefix) }
+		val t = tracks
+		if (t.length() > 0) {
+			val out = JSONObject()
+			for (k in t.keys()) if (!k.startsWith(prefix)) out.put(k, t.getString(k))
+			sp.edit { putString("channelTracks", out.toString()) }
+		}
 	}
 
 	var preferAudioDescription: Boolean

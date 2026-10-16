@@ -223,6 +223,7 @@ class ParsingTest {
 		assertEquals(base, Xmltv.parseTime("20251009090000 +0000"))
 		assertEquals(base + 5 * 3_600_000, Xmltv.parseTime("20251009090000 -0500"))
 		assertEquals(base - 5 * 3_600_000 - 1_800_000, Xmltv.parseTime("20251009090000 +0530"))
+		assertEquals("a colon offset is still an offset", base - 5 * 3_600_000 - 1_800_000, Xmltv.parseTime("20251009090000 +05:30"))
 		assertEquals(base - 3_600_000, Xmltv.parseTime("20251009090000+0100"))
 		assertEquals(base, Xmltv.parseTime("20251009090000 junk"))
 		assertNull(Xmltv.parseTime("20251309090000 +0000"))

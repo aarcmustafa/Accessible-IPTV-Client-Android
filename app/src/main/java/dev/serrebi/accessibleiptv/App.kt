@@ -66,13 +66,27 @@ class App : Application() {
 		val all = ArrayList<Channel>()
 		for (src in prefs.sources) {
 			val cache = cacheFile(src, section)
-			all += try {
-				// Providers add and drop channels: a cache older than 12 hours is fetched again.
-				val fresh = cache.exists() && System.currentTimeMillis() - cache.lastModified() < 12 * 3_600_000L
-				if (!force && fresh) readCache(cache) else fetch(src, section)
-			} catch (e: Exception) {
-				errors += "${src.name}: ${e.message ?: e.javaClass.simpleName}"
-				if (cache.exists()) runCatching { readCache(cache) }.getOrDefault(emptyList()) else emptyList()
+			// Providers add and drop channels: a cache older than 12 hours is fetched again.
+			val fresh = cache.exists() && System.currentTimeMillis() - cache.lastModified() < 12 * 3_600_000L
+			all += if (!force && fresh) {
+				try {
+					readCache(cache)
+				} catch (e: Exception) {
+					// A damaged cache must not empty the section: fetch again, drop it only if that fails too.
+					runCatching { fetch(src, section) }.getOrElse {
+						cache.delete()
+						errors += "${src.name}: ${e.message ?: e.javaClass.simpleName}"
+						emptyList()
+					}
+				}
+			} else {
+				try {
+					fetch(src, section)
+				} catch (e: Exception) {
+					errors += "${src.name}: ${e.message ?: e.javaClass.simpleName}"
+					// A failed download still shows the stale cache, unless that is damaged too.
+					runCatching { readCache(cache) }.getOrElse { cache.delete(); emptyList() }
+				}
 			}
 		}
 		lists[section] = all
@@ -86,41 +100,46 @@ class App : Application() {
 			MOVIES -> Xtream.movies(src)
 			SERIES -> Xtream.series(src)
 			else -> Xtream.liveChannels(src)
-		}.also { writeCache(cacheFile(src, section), it) }
-		src.isStalker -> (if (section == LIVE) stalker(src).channels() else emptyList()).also { writeCache(cacheFile(src, section), it) }
+		}.also { cacheOrFail(cacheFile(src, section), it) }
+		src.isStalker -> (if (section == LIVE) stalker(src).channels() else emptyList()).also { cacheOrFail(cacheFile(src, section), it) }
 		else -> {
 			val text = readSource(src.url)
 			if (text.removePrefix("\uFEFF").lineSequence().none { it.trim().startsWith("#EXTM3U", true) || it.trim().startsWith("#EXTINF:", true) }) {
 				throw java.io.IOException("Not an M3U playlist")
 			}
 			val parsed = M3uParser.parse(src.id, text)
+			// A playlist that parses to nothing is a broken download, not a channel list.
+			if (parsed.isEmpty() && SECTIONS.any { cacheFile(src, it).length() > 2 }) throw java.io.IOException("Playlist has no channels")
 			val bySection = parsed.groupBy { if (it.kind == Channel.KIND_LIVE) LIVE else if (it.kind == Channel.KIND_MOVIE) MOVIES else SERIES }
-			keepFavorites(cacheFile(src, LIVE), bySection[LIVE].orEmpty())
+			migrateKeys(cacheFile(src, LIVE), bySection[LIVE].orEmpty())
 			for (s in SECTIONS) writeCache(cacheFile(src, s), bySection[s].orEmpty())
 			// A playlist that names its own guide (x-tvg-url) needs no guide URL typed in.
-			if (src.epgUrl.isBlank()) M3uParser.headerGuides(text).firstOrNull()?.let { g ->
-				prefs.sources = prefs.sources.map { if (it.id == src.id) it.copy(epgUrl = g) else it }
-			}
+			if (src.epgUrl.isBlank()) M3uParser.headerGuides(text).firstOrNull()?.let { g -> prefs.setSourceEpgUrl(src.id, g) }
 			bySection[section].orEmpty()
 		}
 	}
 
 	/**
-	 * Channel ids changed (0.2.5 and older used list position for M3U). Favourites follow
-	 * their channel by stream URL, so nobody has to mark them again.
+	 * Channel ids can change under the user (0.2.5 and older used list position; a provider
+	 * may renumber its tvg-ids). Favourites, remembered tracks, recent and scheduled
+	 * recordings follow their channel by stream URL, so nobody has to set them again.
 	 */
-	private fun keepFavorites(oldCache: File, fresh: List<Channel>) {
-		val favs = prefs.favorites
-		if (favs.isEmpty() || !oldCache.exists()) return
-		val byUrl = fresh.associateBy { it.url }
-		val moved = runCatching { readCache(oldCache) }.getOrDefault(emptyList())
-			.filter { it.key in favs }.mapNotNull { o -> byUrl[o.url]?.let { o.key to it.key } }.toMap()
-		if (moved.any { (a, b) -> a != b }) prefs.favorites = favs.mapTo(HashSet()) { moved[it] ?: it }
+	private fun migrateKeys(oldCache: File, fresh: List<Channel>) {
+		if (fresh.isEmpty() || !oldCache.exists()) return
+		val old = runCatching { readCache(oldCache) }.getOrDefault(emptyList())
+		// First occurrence wins: two entries sharing a URL must not steal the move.
+		val byUrl = HashMap<String, Channel>()
+		fresh.forEach { byUrl.putIfAbsent(it.url, it) }
+		val moved = old.mapNotNull { o -> byUrl[o.url]?.let { o.key to it.key } }.toMap().filter { (a, b) -> a != b }
+		if (moved.isEmpty()) return
+		prefs.remapChannelKeys(moved)
+		Recorder.remap(this, moved)
 	}
 
 	/** Playlist text from a URL or from a file the user picked (content://). */
 	private fun readSource(url: String): String =
-		if (url.startsWith("content://")) contentResolver.openInputStream(Uri.parse(url))!!.use { it.readBytes().toString(Charsets.UTF_8) }
+		if (url.startsWith("content://")) (contentResolver.openInputStream(Uri.parse(url))
+			?: throw java.io.IOException("Cannot open the playlist file")).use { it.readBytes().toString(Charsets.UTF_8) }
 		else Net.text(url)
 
 	fun forgetCache(src: Source) {
@@ -161,12 +180,27 @@ class App : Application() {
 		return out
 	}
 
+	/** Caches a fetch, unless an empty result would replace real channels with nothing. */
+	private fun cacheOrFail(f: File, list: List<Channel>) {
+		// "[]" is 2 bytes, so a longer file held at least one channel once.
+		if (list.isEmpty() && f.length() > 2) throw java.io.IOException("Provider returned no channels")
+		writeCache(f, list)
+	}
+
 	private fun writeCache(f: File, list: List<Channel>) {
 		// ponytail: one JSON file per section; 250k movies is ~50 MB. Move to SQLite if memory bites.
-		f.bufferedWriter().use { w ->
+		// Written beside and renamed in: a process killed mid-write must not leave a torn cache.
+		val tmp = File(f.parentFile, f.name + ".tmp")
+		tmp.bufferedWriter().use { w ->
 			w.write("[")
 			list.forEachIndexed { i, c -> if (i > 0) w.write(","); w.write(c.toJson().toString()) }
 			w.write("]")
+		}
+		try {
+			java.nio.file.Files.move(tmp.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+		} catch (e: Exception) {
+			tmp.delete()
+			throw e
 		}
 	}
 
@@ -261,9 +295,9 @@ class App : Application() {
 		val daysAhead = prefs.epgDaysAhead
 		val fingerprint = guideFingerprint(importedChannels)
 		val urls = sources.map { it.effectiveEpgUrl }.filter { it.isNotBlank() }.distinct()
-		// No guide URL anywhere: the import would swap in empty tables and throw away the
-		// guide the user already has for nothing. Nothing to do.
-		if (urls.isEmpty()) return@withContext 0
+		// No guide URL anywhere, or no channels to match against: the import would swap in
+		// empty tables and throw away the guide the user already has for nothing.
+		if (urls.isEmpty() || importedChannels.isEmpty()) return@withContext 0
 		val now = System.currentTimeMillis()
 		val back = maxOf(1, importedChannels.maxOfOrNull { it.catchupDays } ?: 0).coerceAtMost(7)
 		val n = epg.import(urls, importedChannels, now - back * 86_400_000L, now + daysAhead * 86_400_000L, progress)

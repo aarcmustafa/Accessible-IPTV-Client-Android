@@ -44,6 +44,13 @@ class MainActivity : AppCompatActivity() {
 		val heard = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@registerForActivityResult
 		search.setText(heard)
 		search.setSelection(heard.length)
+		// Like the keyboard's Search key: run the search now and move the reader to the result
+		// count, otherwise a voice search ends in silence.
+		searchJob?.cancel()
+		lifecycleScope.launch {
+			showChannels().join()
+			channelsHeading.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
+		}
 	}
 
 	private fun startVoice() {
@@ -218,7 +225,8 @@ class MainActivity : AppCompatActivity() {
 	private fun selectSection(s: String) {
 		section = s
 		group = App.ALL
-		if (app.isLoaded(s)) { refreshGroupCounts(); showChannels(); status.status("") }
+		// An already loaded section announces its count; otherwise load() announces it.
+		if (app.isLoaded(s)) { refreshGroupCounts(); showChannels(); status.status(countText(app.list(s).size)) }
 		else load(force = false)
 	}
 
@@ -352,6 +360,12 @@ class MainActivity : AppCompatActivity() {
 		Channel.byNumber(app.channels, n)?.let { Player.open(this, it, status) } ?: status.status(getString(R.string.number_not_found, n))
 	}
 
+	override fun onDestroy() {
+		// The digit timer must not fire (and open the player) after the screen is gone.
+		status.removeCallbacks(jump)
+		super.onDestroy()
+	}
+
 	override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
 		if (currentFocus is EditText) return super.onKeyUp(keyCode, event)
 		if (keyCode in android.view.KeyEvent.KEYCODE_0..android.view.KeyEvent.KEYCODE_9 && digits.length < 6) {
@@ -366,11 +380,12 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	private fun checkUpdates(quiet: Boolean) {
-		app.prefs.lastUpdateCheck = System.currentTimeMillis()
 		if (!quiet) status.status(getString(R.string.checking_updates))
 		lifecycleScope.launch {
 			val result = withContext(Dispatchers.IO) { runCatching { Updater.check(BuildConfig.VERSION_NAME) } }
 			val r = result.getOrNull()
+			// Only a check that ran counts as today's; a network failure tries again next launch.
+			if (result.isSuccess) app.prefs.lastUpdateCheck = System.currentTimeMillis()
 			when {
 				r != null -> AlertDialog.Builder(this@MainActivity)
 					.setTitle(getString(R.string.update_available, r.version))

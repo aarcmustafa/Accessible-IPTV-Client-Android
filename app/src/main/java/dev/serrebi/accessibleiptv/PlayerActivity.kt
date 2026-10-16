@@ -98,6 +98,8 @@ class PlayerActivity : AppCompatActivity() {
 	private var fullscreen = false
 	/** A live channel (not catch-up, a file or VOD): drops are reconnected like the desktop. */
 	private var live = false
+	/** Catch-up or a file: the Record button does not apply. */
+	private var catchupPlayback = false
 	private val reconnect = Reconnect(android.os.SystemClock::elapsedRealtime)
 	private val retry = android.os.Handler(android.os.Looper.getMainLooper())
 	private var retryJob: Runnable? = null
@@ -110,8 +112,9 @@ class PlayerActivity : AppCompatActivity() {
 	private val pace: Runnable = object : Runnable {
 		override fun run() {
 			val local = player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE
-			// A sink warning alone is recoverable. Retry only if its backward reset leaves playback stuck.
-			if (exo.isPlaying || exo.totalBufferedDuration >= 500) timestampResetAt = null
+			// A sink warning alone is recoverable: the mark goes once playback runs again.
+			// Buffered data is no proof — a wedged stream can hold minutes of unplayable queue.
+			if (exo.isPlaying) timestampResetAt = null
 			val resetAt = timestampResetAt
 			if (local && !pausedByStop && player.playWhenReady && exo.playbackState == M3Player.STATE_BUFFERING &&
 				resetAt != null && android.os.SystemClock.elapsedRealtime() - resetAt >= 5_000) {
@@ -179,6 +182,10 @@ class PlayerActivity : AppCompatActivity() {
 			.setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http), extractors))
 			.setLoadControl(cushion)
 			.build()
+		// Pause for calls, alarms and other apps instead of talking over them, and stop when
+		// the headphones are pulled out instead of switching to the phone's speaker.
+		exo.setAudioAttributes(androidx.media3.common.AudioAttributes.DEFAULT, true)
+		exo.setHandleAudioBecomingNoisy(true)
 		exo.addAnalyticsListener(object : AnalyticsListener {
 			override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
 				if (audioSinkError is AudioSink.UnexpectedDiscontinuityException &&
@@ -225,11 +232,24 @@ class PlayerActivity : AppCompatActivity() {
 		findViewById<Button>(R.id.btnSubs).setOnClickListener { chooseSubtitles() }
 		// Our own subtitle line replaces PlayerView's, so the text is shown once and can be spoken.
 		video.subtitleView?.visibility = View.GONE
+		// The button follows the recording: while one runs, it stops it instead of starting a second.
+		catchupPlayback = catchup
 		findViewById<Button>(R.id.btnRecord).setOnClickListener {
 			val c = app.channel(channelKey)
-			if (c == null || catchup) say(getString(R.string.cannot_record_this), 1)
-			else { Recorder.start(this, c, app.epg.nowNext(c).now?.title.orEmpty()); say(getString(R.string.recording_channel, c.name), 2) }
+			when {
+				c == null || catchup -> say(getString(R.string.cannot_record_this), 1)
+				Recorder.isRecording(c.key) -> {
+					Recorder.stop(this, c.key)
+					say(getString(R.string.recording_stopped, c.name), 2)
+				}
+				else -> {
+					Recorder.start(this, c, app.epg.nowNext(c).now?.title.orEmpty())
+					say(getString(R.string.recording_channel, c.name), 2)
+				}
+			}
+			updateRecordButton()
 		}
+		updateRecordButton()
 		findViewById<Button>(R.id.btnFull).setOnClickListener { setFullscreen(true) }
 		findViewById<Button>(R.id.btnClose).setOnClickListener { finish() }
 		// After layout: inside the scrolling button bar an early request is dropped and nothing has focus.
@@ -306,10 +326,20 @@ class PlayerActivity : AppCompatActivity() {
 	/**
 	 * A status line, spoken only up to the "Automatic announcements" level in Settings
 	 * (desktop: 1 errors, 2 important events, 3 detailed status). The text always updates.
+	 * Full screen keeps this line: a GONE live region announces nothing, and the API for
+	 * announcing on a hidden view is deprecated on Android 16.
 	 */
 	private fun say(text: String, priority: Int) {
-		status.accessibilityLiveRegion = if (app.prefs.announceLevel >= priority) View.ACCESSIBILITY_LIVE_REGION_POLITE else View.ACCESSIBILITY_LIVE_REGION_NONE
+		val loud = app.prefs.announceLevel >= priority
+		status.accessibilityLiveRegion = if (loud) View.ACCESSIBILITY_LIVE_REGION_POLITE else View.ACCESSIBILITY_LIVE_REGION_NONE
 		status.text = text
+	}
+
+	/** The Record button says what pressing it will do, including for a recording already running. */
+	private fun updateRecordButton() {
+		findViewById<Button>(R.id.btnRecord).setText(
+			if (!catchupPlayback && channelKey.isNotEmpty() && Recorder.isRecording(channelKey)) R.string.stop_recording_channel else R.string.record,
+		)
 	}
 
 	private var channelName = ""
@@ -388,6 +418,9 @@ class PlayerActivity : AppCompatActivity() {
 		val item = player.currentMediaItem ?: return
 		timestampResetAt = null
 		autoTrackDone = false
+		// A reconnect is not a stall: its own buffering must not grow the cushion, and it starts
+		// with the quick-start buffer instead of the full one (hasPlayed arms the stall count).
+		hasPlayed = false
 		// A fresh media period discards stale sample queues and timestamp adjusters after a source reset.
 		player.stop()
 		player.setMediaItem(item, true)
@@ -425,9 +458,10 @@ class PlayerActivity : AppCompatActivity() {
 			video.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
 			video.contentDescription = getString(R.string.video_full_screen)
 			video.requestFocus()
-			for (id in listOf(R.id.controls, R.id.nowPlaying, R.id.playerStatus)) findViewById<View>(id).visibility = shown
+			// The status line stays: it is the announcement channel in full screen too.
+			for (id in listOf(R.id.controls, R.id.nowPlaying)) findViewById<View>(id).visibility = shown
 		} else {
-			for (id in listOf(R.id.controls, R.id.nowPlaying, R.id.playerStatus)) findViewById<View>(id).visibility = shown
+			for (id in listOf(R.id.controls, R.id.nowPlaying)) findViewById<View>(id).visibility = shown
 			findViewById<View>(R.id.btnFull).requestFocus()
 			video.isFocusable = false
 			video.isClickable = false
@@ -482,8 +516,10 @@ class PlayerActivity : AppCompatActivity() {
 	}
 
 	override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = when (keyCode) {
-		// Media keys on remotes and keyboards.
+		// Media keys on remotes and keyboards; some send Play and Pause separately.
 		KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { pause.performClick(); true }
+		KeyEvent.KEYCODE_MEDIA_PLAY -> { if (!player.isPlaying) pause.performClick(); true }
+		KeyEvent.KEYCODE_MEDIA_PAUSE -> { if (player.isPlaying) pause.performClick(); true }
 		KeyEvent.KEYCODE_A -> { chooseAudio(); true }
 		KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_CAPTIONS -> { chooseSubtitles(); true }
 		KeyEvent.KEYCODE_F -> { setFullscreen(!fullscreen); true }
@@ -503,6 +539,8 @@ class PlayerActivity : AppCompatActivity() {
 
 	override fun onStart() {
 		super.onStart()
+		// The recording may have been stopped from its notification while the app was away.
+		updateRecordButton()
 		// Back in the app: live TV picks up at the live edge, not minutes behind where it stopped.
 		if (!pausedByStop) return
 		pausedByStop = false

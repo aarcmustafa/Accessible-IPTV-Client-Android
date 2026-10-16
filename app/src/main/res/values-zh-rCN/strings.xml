@@ -18,7 +18,7 @@
 	<string name="favorites">收藏</string>
 	<string name="search_guide">搜索节目单</string>
 	<string name="guide_search_hint">至少输入 2 个字符搜索节目指南。</string>
-	<string name="results_limited">显示前 500 条结果。继续输入可缩小范围。</string>
+	<string name="results_limited">显示前 %1$d 条结果。继续输入可缩小范围。</string>
 	<string name="no_matches">没有结果。</string>
 	<string name="download">下载</string>
 	<string name="downloading">正在下载 %1$s</string>

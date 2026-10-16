@@ -199,18 +199,24 @@ class Epg(context: Context) : SQLiteOpenHelper(context, "epg.db", null, 1) {
 			throw e
 		}
 		db.endTransaction()
-		db.beginTransaction()
 		try {
-			db.execSQL("DROP TABLE prog")
-			db.execSQL("DROP TABLE gch")
-			db.execSQL("ALTER TABLE prog_new RENAME TO prog")
-			db.execSQL("ALTER TABLE gch_new RENAME TO gch")
-			// Indexes after the bulk insert: faster than keeping them up to date row by row.
-			db.execSQL("CREATE INDEX prog_ch ON prog (ch, start)")
-			db.execSQL("CREATE INDEX prog_time ON prog (start, stop)")
-			db.setTransactionSuccessful()
-		} finally {
-			db.endTransaction()
+			db.beginTransaction()
+			try {
+				db.execSQL("DROP TABLE prog")
+				db.execSQL("DROP TABLE gch")
+				db.execSQL("ALTER TABLE prog_new RENAME TO prog")
+				db.execSQL("ALTER TABLE gch_new RENAME TO gch")
+				// Indexes after the bulk insert: faster than keeping them up to date row by row.
+				db.execSQL("CREATE INDEX prog_ch ON prog (ch, start)")
+				db.execSQL("CREATE INDEX prog_time ON prog (start, stop)")
+				db.setTransactionSuccessful()
+			} finally {
+				db.endTransaction()
+			}
+		} catch (e: Exception) {
+			// Rolled back, the old guide is back: drop the staging copy instead of leaving it on disk.
+			runCatching { db.execSQL("DROP TABLE IF EXISTS prog_new"); db.execSQL("DROP TABLE IF EXISTS gch_new") }
+			throw e
 		}
 		loadIndex()
 		return count
