@@ -20,7 +20,7 @@ Vorheriger Sender, Zuletzt gesehen, Zu Sendernummer, Listen aktualisieren, Progr
 
 Aktivieren spielt ab. Eine Serie öffnet ihre Folgen.
 
-Aktionsmenü: in anderer App abspielen, Favorit, Details, Programm, aufnehmen oder Aufnahme stoppen, herunterladen. Ohne TalkBack: lang drücken oder Menütaste.
+Aktionsmenü: Favorit, Details, Programm, aufnehmen oder Aufnahme stoppen, herunterladen. Ohne TalkBack: lang drücken oder Menütaste.
 
 # Programm
 
@@ -40,6 +40,8 @@ Wechselt die Sendung, sagt der Player, was jetzt läuft. Einstellungen, Ansagen 
 
 Ein abgebrochener Live-Stream verbindet sich selbst neu.
 
+Ein Anbieterstream pro Gerät. Ansehen, Übertragen und Aufnehmen desselben TS-Livestreams teilen sich diesen; ein anderer Stream wird abgewiesen, bis der aktuelle gestoppt wird. Die Übergabe an externe Player ist nicht verfügbar, da sich die Verbindungen anderer Apps nicht begrenzen lassen.
+
 # Aufnahmen
 
 Gespeichert in Movies/AccessibleIPTV. Laufende Aufnahmen stehen oben; aktivieren stoppt sie.
@@ -47,6 +49,8 @@ Gespeichert in Movies/AccessibleIPTV. Laufende Aufnahmen stehen oben; aktivieren
 Geplante Aufnahmen laufen 2 Minuten über das Ende und überstehen einen Neustart. Die Minuten vorher und nachher stehen in den Einstellungen.
 
 Ein Mediathek-Download, der zu früh endet, wird neu geladen.
+
+HLS-Anfragen werden nacheinander ausgeführt. Downloads benötigen den Stream für sich allein.
 
 # Einstellungen
 

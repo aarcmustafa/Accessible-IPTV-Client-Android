@@ -56,7 +56,8 @@
 	<string name="allow_installs">اسمح بالتثبيت من هذا التطبيق، ثم أعد المحاولة.</string>
 	<string name="update_failed">فشل التحديث: %1$s</string>
 	<string name="play_external">تشغيل في تطبيق آخر</string>
-	<string name="no_external_player">لا يوجد مشغل آخر مثبت.</string>
+	<string name="stream_busy">بث آخر قيد الاستخدام. أوقفه أولاً.</string>
+	<string name="stream_external_blocked">استخدم المشغل المدمج للحفاظ على اتصال واحد.</string>
 	<string name="add_favorite">إضافة إلى المفضلة</string>
 	<string name="remove_favorite">إزالة من المفضلة</string>
 	<string name="added_favorite">تمت إضافة %1$s.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">الصوت المفضل، مفصولًا بفواصل</string>
 	<string name="preferred_tracks_hint">العربية, الإنجليزية</string>
 	<string name="playback_heading">التشغيل</string>
-	<string name="use_external_player">استخدام تطبيق مشغل آخر</string>
 	<string name="guide_heading">الدليل</string>
 	<string name="guide_days">أيام الدليل القادمة (1 إلى 14)</string>
 	<string name="show_stream_url">إظهار رابط البث</string>

@@ -42,6 +42,21 @@ object Recorder {
 
 	fun isRecording(channelKey: String) = active.containsKey(channelKey)
 
+	/**
+	 * One provider stream per device: true when this recording may start. Watching the same
+	 * live channel shares its tap, so recording it needs nothing else; a live HLS channel and
+	 * a download take the stream for themselves and are refused while anything else runs.
+	 */
+	fun canStart(ch: Channel): Boolean = when {
+		!ch.isLive -> canDownload()
+		LiveChannels.current(ch.key) != null -> true
+		// A live HLS channel takes its own stream; the check covers both ids a channel can hold.
+		else -> Streams.free(Streams.liveId(ch.key)) && Streams.free(Streams.hlsId(ch.key))
+	}
+
+	/** A download needs the one provider stream to itself: nothing else may be using it. */
+	fun canDownload() = Streams.current() == null
+
 	fun createChannel(c: Context) {
 		c.getSystemService(NotificationManager::class.java).createNotificationChannel(
 			NotificationChannel(NOTIF_CHANNEL, c.getString(R.string.recordings), NotificationManager.IMPORTANCE_LOW),
@@ -303,6 +318,20 @@ class RecordService : Service() {
 			return
 		}
 		val (plain, headers) = M3uParser.splitHeaders(real)
+		val download = key.startsWith("dl:")
+		val hls = isHlsUrl(plain)
+		// A live TS channel reads the tap, which watching may already have opened; everything
+		// else — an HLS stream, a download — takes the one provider stream for itself.
+		val shared = if (!download && !hls) LiveChannels.attach(key) { Net.open(plain, headers) } else null
+		val gate = if (download) Streams.downloadId(plain) else if (hls) Streams.liveId(key) else null
+		if ((shared == null && gate == null) || (gate != null && !Streams.acquire(gate))) {
+			// Another stream is in use: a missed recording must say so, never run silently.
+			Recorder.failed(this, label)
+			jobs.remove(key)
+			Recorder.active.remove(key)
+			if (jobs.isEmpty()) stopSelf()
+			return
+		}
 		val fileName = "${label.replace(Regex("[\\\\/:*?\"<>|]"), "_")} ${Format.dateTime(System.currentTimeMillis()).replace(Regex("[\\\\/:]"), "-")}.ts"
 		val values = ContentValues().apply {
 			put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
@@ -329,8 +358,13 @@ class RecordService : Service() {
 							written += len
 						}
 					})
-					// Live recordings ride out drops until their end time; a download (a file) ends at its end.
-					ok = Recorder.copy({ Net.open(plain, headers) }, out, reconnect = !key.startsWith("dl:"), done = done)
+					// The tap reconnects a live stream itself; a download (a file) ends at its end,
+					// and an HLS stream is followed one request at a time.
+					ok = when {
+						hls -> Hls.download(open = { Net.open(it, headers) }, url = plain, out = out, done = done)
+						shared != null -> Recorder.copy({ shared.reader() }, out, reconnect = false, done = done)
+						else -> Recorder.copy({ Net.open(plain, headers) }, out, reconnect = false, done = done)
+					}
 				}
 				early = Recorder.endedEarly(clock.durationMs, expect)
 				if (!early || done()) break
@@ -350,6 +384,9 @@ class RecordService : Service() {
 				failed = true
 				android.util.Log.e("AiptvRecorder", "Could not finalize recording", e)
 			}
+			// The stream is free again: watching may keep the tap, the last reader closes it.
+			shared?.let { LiveChannels.leave(it) }
+			gate?.let { Streams.release(it) }
 			jobs.remove(key)
 			Recorder.active.remove(key)
 			cancelled -= key

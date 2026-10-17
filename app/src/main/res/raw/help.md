@@ -20,7 +20,7 @@ Previous channel, Recently watched, Go to channel number, Refresh playlists, Ref
 
 Activate to play. A series opens its episodes.
 
-Actions menu: play in another app, favourite, details, guide, record or stop recording, download. Without TalkBack: long-press, or the Menu key.
+Actions menu: favourite, details, guide, record or stop recording, download. Without TalkBack: long-press, or the Menu key.
 
 # Guide
 
@@ -40,6 +40,8 @@ When the programme changes, the player says what is on now. Settings, Announceme
 
 A live stream that drops reconnects by itself.
 
+One provider stream per device. Watching, casting and recording the same live TS stream share it; a different stream is refused until it stops. External player handoff is unavailable because connections from another app cannot be limited.
+
 # Recordings
 
 Saved to Movies/AccessibleIPTV. Recordings in progress are listed first; activate one to stop it.
@@ -47,6 +49,8 @@ Saved to Movies/AccessibleIPTV. Recordings in progress are listed first; activat
 Scheduled recordings run 2 minutes past the end and survive a restart. Change the minutes before and after in Settings.
 
 A catch-up download that ends early is fetched again.
+
+HLS requests run one at a time. Downloads need the stream to themselves.
 
 # Settings
 

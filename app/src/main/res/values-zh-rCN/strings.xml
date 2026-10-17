@@ -56,7 +56,8 @@
 	<string name="allow_installs">请允许此应用安装软件,然后重试。</string>
 	<string name="update_failed">更新失败: %1$s</string>
 	<string name="play_external">用其他应用播放</string>
-	<string name="no_external_player">没有安装其他播放器。</string>
+	<string name="stream_busy">正在使用另一个流。请先停止它。</string>
+	<string name="stream_external_blocked">请使用内置播放器以保持单一连接。</string>
 	<string name="add_favorite">加入收藏</string>
 	<string name="remove_favorite">取消收藏</string>
 	<string name="added_favorite">已添加 %1$s。</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">首选音轨,用逗号分隔</string>
 	<string name="preferred_tracks_hint">中文, 英语</string>
 	<string name="playback_heading">播放</string>
-	<string name="use_external_player">使用其他播放器应用</string>
 	<string name="guide_heading">节目单</string>
 	<string name="guide_days">节目单提前天数(1 至 14)</string>
 	<string name="show_stream_url">显示流 URL</string>

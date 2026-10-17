@@ -64,7 +64,8 @@
 
 	<!-- Item actions -->
 	<string name="play_external">Play in another app</string>
-	<string name="no_external_player">No other player installed.</string>
+	<string name="stream_busy">Another stream is in use. Stop it first.</string>
+	<string name="stream_external_blocked">Use the built-in player to keep one connection.</string>
 	<string name="add_favorite">Add favourite</string>
 	<string name="remove_favorite">Remove favourite</string>
 	<string name="added_favorite">Added %1$s.</string>
@@ -163,7 +164,6 @@
 	<string name="preferred_tracks">Preferred audio, comma separated</string>
 	<string name="preferred_tracks_hint">English, Polish</string>
 	<string name="playback_heading">Playback</string>
-	<string name="use_external_player">Use another player app</string>
 	<string name="guide_heading">Guide</string>
 	<string name="guide_days">Guide days ahead (1 to 14)</string>
 	<string name="show_stream_url">Show stream URL</string>

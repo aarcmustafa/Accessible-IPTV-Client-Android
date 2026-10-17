@@ -56,7 +56,8 @@
 	<string name="allow_installs">Разрешите установку из этого приложения и повторите.</string>
 	<string name="update_failed">Ошибка обновления: %1$s</string>
 	<string name="play_external">Открыть в другом приложении</string>
-	<string name="no_external_player">Другой плеер не установлен.</string>
+	<string name="stream_busy">Используется другой поток. Сначала остановите его.</string>
+	<string name="stream_external_blocked">Используйте встроенный плеер для одного соединения.</string>
 	<string name="add_favorite">В избранное</string>
 	<string name="remove_favorite">Убрать из избранного</string>
 	<string name="added_favorite">%1$s добавлен.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Предпочитаемый звук, через запятую</string>
 	<string name="preferred_tracks_hint">Русский, Английский</string>
 	<string name="playback_heading">Воспроизведение</string>
-	<string name="use_external_player">Использовать другой плеер</string>
 	<string name="guide_heading">Программа</string>
 	<string name="guide_days">Дней программы вперёд (1–14)</string>
 	<string name="show_stream_url">Показывать URL потока</string>

@@ -20,7 +20,7 @@ Canal anterior, Vistos recentemente, Ir para número do canal, Atualizar listas,
 
 Ative para reproduzir. Uma série abre seus episódios.
 
-Menu de ações: reproduzir em outro app, favorito, detalhes, guia, gravar ou parar gravação, baixar. Sem TalkBack: toque longo ou tecla Menu.
+Menu de ações: favorito, detalhes, guia, gravar ou parar gravação, baixar. Sem TalkBack: toque longo ou tecla Menu.
 
 # Guia
 
@@ -40,6 +40,8 @@ Quando o programa muda, o player diz o que está no ar. Configurações, Anúnci
 
 Uma transmissão ao vivo que cai se reconecta sozinha.
 
+Uma transmissão do provedor por dispositivo. Assistir, transmitir e gravar a mesma transmissão TS ao vivo compartilham essa transmissão; outra é recusada até que a atual seja parada. O envio para um player externo não está disponível porque não é possível limitar as conexões de outro app.
+
 # Gravações
 
 Salvas em Movies/AccessibleIPTV. As gravações em andamento aparecem primeiro; ative uma para pará-la.
@@ -47,6 +49,8 @@ Salvas em Movies/AccessibleIPTV. As gravações em andamento aparecem primeiro; 
 Gravações agendadas continuam 2 minutos após o fim e sobrevivem a uma reinicialização. Mude os minutos antes e depois nas Configurações.
 
 Um download de reprise que termina antes da hora é baixado de novo.
+
+As solicitações HLS são feitas uma de cada vez. Os downloads precisam de uso exclusivo da transmissão.
 
 # Configurações
 

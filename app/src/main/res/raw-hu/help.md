@@ -20,7 +20,7 @@ Előző csatorna, Legutóbb nézett, Ugrás csatornaszámra, Listák frissítés
 
 Aktiválja a lejátszáshoz. A sorozat megnyitja az epizódjait.
 
-Műveletek menü: lejátszás másik alkalmazásban, kedvenc, részletek, műsorújság, rögzítés vagy rögzítés leállítása, letöltés. TalkBack nélkül: hosszú nyomás vagy a Menü gomb.
+Műveletek menü: kedvenc, részletek, műsorújság, rögzítés vagy rögzítés leállítása, letöltés. TalkBack nélkül: hosszú nyomás vagy a Menü gomb.
 
 # Műsorújság
 
@@ -40,6 +40,8 @@ Ha változik a műsor, a lejátszó bemondja, mi megy most. A Beállítások, Be
 
 A megszakadt élő adás magától újrakapcsolódik.
 
+Eszközönként egy szolgáltatói adatfolyam használható. Ugyanazon élő TS-adatfolyam nézése, átküldése és rögzítése közös adatfolyamot használ; másik adatfolyam csak az aktuális leállítása után indítható. Külső lejátszó nem használható, mert más alkalmazások kapcsolatai nem korlátozhatók.
+
 # Rögzítések
 
 Mentés helye: Movies/AccessibleIPTV. A folyamatban lévő rögzítések elöl vannak; aktiváljon egyet a leállításához.
@@ -47,6 +49,8 @@ Mentés helye: Movies/AccessibleIPTV. A folyamatban lévő rögzítések elöl v
 Az ütemezett rögzítések a vége után még 2 percig futnak, és túlélik az újraindítást. Az előtte és utána perceket a Beállításokban módosíthatja.
 
 Az idő előtt véget ért visszajátszás-letöltést újra letölti.
+
+A HLS-kérések egymás után futnak. A letöltések kizárólagosan használják az adatfolyamot.
 
 # Beállítások
 

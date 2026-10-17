@@ -56,7 +56,8 @@
 	<string name="allow_installs">Installationen für diese App erlauben, dann erneut versuchen.</string>
 	<string name="update_failed">Update fehlgeschlagen: %1$s</string>
 	<string name="play_external">In anderer App abspielen</string>
-	<string name="no_external_player">Kein anderer Player installiert.</string>
+	<string name="stream_busy">Ein anderer Stream wird verwendet. Stoppen Sie ihn zuerst.</string>
+	<string name="stream_external_blocked">Nutzen Sie den integrierten Player für nur eine Verbindung.</string>
 	<string name="add_favorite">Zu Favoriten</string>
 	<string name="remove_favorite">Aus Favoriten entfernen</string>
 	<string name="added_favorite">%1$s hinzugefügt.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Bevorzugter Ton, durch Kommas getrennt</string>
 	<string name="preferred_tracks_hint">Deutsch, Englisch</string>
 	<string name="playback_heading">Wiedergabe</string>
-	<string name="use_external_player">Andere Player-App verwenden</string>
 	<string name="guide_heading">Programm</string>
 	<string name="guide_days">Programmtage im Voraus (1 bis 14)</string>
 	<string name="show_stream_url">Stream-URL anzeigen</string>

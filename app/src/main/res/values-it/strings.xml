@@ -56,7 +56,8 @@
 	<string name="allow_installs">Consenti le installazioni da questa app, poi riprova.</string>
 	<string name="update_failed">Aggiornamento non riuscito: %1$s</string>
 	<string name="play_external">Riproduci in un’altra app</string>
-	<string name="no_external_player">Nessun altro lettore installato.</string>
+	<string name="stream_busy">Un altro flusso è in uso. Fermalo prima.</string>
+	<string name="stream_external_blocked">Usa il lettore integrato per mantenere una sola connessione.</string>
 	<string name="add_favorite">Aggiungi ai preferiti</string>
 	<string name="remove_favorite">Rimuovi dai preferiti</string>
 	<string name="added_favorite">%1$s aggiunto.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Audio preferito, separato da virgole</string>
 	<string name="preferred_tracks_hint">Italiano, Inglese</string>
 	<string name="playback_heading">Riproduzione</string>
-	<string name="use_external_player">Usa un’altra app di riproduzione</string>
 	<string name="guide_heading">Guida</string>
 	<string name="guide_days">Giorni di guida (da 1 a 14)</string>
 	<string name="show_stream_url">Mostra URL del flusso</string>

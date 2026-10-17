@@ -31,11 +31,15 @@ import java.time.Duration
 @RunWith(RobolectricTestRunner::class)
 class FeatureTest {
 	private val server = FakeServer()
+	/** Players built by the tests, destroyed afterwards so the one stream is free again. */
+	private val players = mutableListOf<org.robolectric.android.controller.ActivityController<PlayerActivity>>()
 	private val app get() = RuntimeEnvironment.getApplication() as App
 
 	@Before fun quiet() { app.prefs.lastUpdateCheck = System.currentTimeMillis() }
 
 	@After fun stop() {
+		players.forEach { it.pause().stop().destroy() }
+		players.clear()
 		server.close()
 		Recorder.active.clear()
 	}
@@ -284,7 +288,7 @@ class FeatureTest {
 	private fun player() = Robolectric.buildActivity(
 		PlayerActivity::class.java,
 		Intent(app, PlayerActivity::class.java).putExtra("url", "${server.url}/live.ts").putExtra("title", "BBC One").putExtra("key", ""),
-	).setup().get()
+	).also { players += it }.setup().get()
 
 	@Test fun announcementLevelDecidesWhatIsSpoken() {
 		app.prefs.announceLevel = 0

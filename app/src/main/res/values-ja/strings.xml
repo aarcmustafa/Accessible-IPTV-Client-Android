@@ -56,7 +56,8 @@
 	<string name="allow_installs">このアプリからのインストールを許可して、もう一度お試しください。</string>
 	<string name="update_failed">アップデート失敗: %1$s</string>
 	<string name="play_external">他のアプリで再生</string>
-	<string name="no_external_player">他のプレーヤーがありません。</string>
+	<string name="stream_busy">別のストリームを使用中です。先に停止してください。</string>
+	<string name="stream_external_blocked">接続を1つに保つには内蔵プレーヤーを使用してください。</string>
 	<string name="add_favorite">お気に入りに追加</string>
 	<string name="remove_favorite">お気に入りから削除</string>
 	<string name="added_favorite">%1$s を追加しました。</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">優先する音声 (カンマ区切り)</string>
 	<string name="preferred_tracks_hint">日本語, 英語</string>
 	<string name="playback_heading">再生</string>
-	<string name="use_external_player">他のプレーヤーアプリを使う</string>
 	<string name="guide_heading">番組表</string>
 	<string name="guide_days">番組表の先の日数 (1〜14)</string>
 	<string name="show_stream_url">ストリーム URL を表示</string>

@@ -56,7 +56,8 @@
 	<string name="allow_installs">Autorisez les installations depuis cette app, puis réessayez.</string>
 	<string name="update_failed">Échec de la mise à jour : %1$s</string>
 	<string name="play_external">Lire dans une autre app</string>
-	<string name="no_external_player">Aucun autre lecteur installé.</string>
+	<string name="stream_busy">Un autre flux est utilisé. Arrêtez-le d’abord.</string>
+	<string name="stream_external_blocked">Utilisez le lecteur intégré pour garder une seule connexion.</string>
 	<string name="add_favorite">Ajouter aux favoris</string>
 	<string name="remove_favorite">Retirer des favoris</string>
 	<string name="added_favorite">%1$s ajouté.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Audio préféré, séparé par des virgules</string>
 	<string name="preferred_tracks_hint">Français, Anglais</string>
 	<string name="playback_heading">Lecture</string>
-	<string name="use_external_player">Utiliser une autre app de lecture</string>
 	<string name="guide_heading">Guide</string>
 	<string name="guide_days">Jours de guide (1 à 14)</string>
 	<string name="show_stream_url">Afficher l’URL du flux</string>

@@ -20,7 +20,7 @@ Canale precedente, Visti di recente, Vai al numero di canale, Aggiorna liste, Ag
 
 Attiva per riprodurre. Una serie apre i suoi episodi.
 
-Menu azioni: riproduci in un’altra app, preferito, dettagli, guida, registra o ferma la registrazione, scarica. Senza TalkBack: pressione lunga o tasto Menu.
+Menu azioni: preferito, dettagli, guida, registra o ferma la registrazione, scarica. Senza TalkBack: pressione lunga o tasto Menu.
 
 # Guida
 
@@ -40,6 +40,8 @@ Quando cambia il programma, il lettore dice cosa va in onda. Impostazioni, Annun
 
 Una diretta che cade si riconnette da sola.
 
+Un flusso del fornitore per dispositivo. La visione, la trasmissione e la registrazione dello stesso flusso TS in diretta lo condividono; un flusso diverso viene rifiutato finché quello attuale non viene fermato. Il passaggio a un lettore esterno non è disponibile perché non è possibile limitare le connessioni di un’altra app.
+
 # Registrazioni
 
 Salvate in Movies/AccessibleIPTV. Le registrazioni in corso sono in cima; attivane una per fermarla.
@@ -47,6 +49,8 @@ Salvate in Movies/AccessibleIPTV. Le registrazioni in corso sono in cima; attiva
 Le registrazioni programmate durano 2 minuti oltre la fine e sopravvivono a un riavvio. Cambia i minuti prima e dopo nelle Impostazioni.
 
 Un download replay che finisce in anticipo viene riscaricato.
+
+Le richieste HLS vengono eseguite una alla volta. I download richiedono l’uso esclusivo del flusso.
 
 # Impostazioni
 

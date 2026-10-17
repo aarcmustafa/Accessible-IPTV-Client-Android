@@ -15,7 +15,6 @@ class SettingsActivity : AppCompatActivity() {
 	private val prefs by lazy { App.of(this).prefs }
 	private lateinit var preferAd: CheckBox
 	private lateinit var keywords: EditText
-	private lateinit var external: CheckBox
 	private lateinit var showUrl: CheckBox
 	private lateinit var speakSubs: CheckBox
 	private lateinit var announce: RadioGroup
@@ -58,7 +57,6 @@ class SettingsActivity : AppCompatActivity() {
 		listOf(R.id.hAudio, R.id.hPlayback, R.id.hGuide, R.id.hRecordings, R.id.hBackup).forEach { findViewById<View>(it).heading() }
 		preferAd = findViewById(R.id.preferAd)
 		keywords = findViewById(R.id.keywords)
-		external = findViewById(R.id.external)
 		days = findViewById(R.id.days)
 		showUrl = findViewById(R.id.showUrl)
 		speakSubs = findViewById(R.id.speakSubs)
@@ -84,7 +82,6 @@ class SettingsActivity : AppCompatActivity() {
 		showUrl.isChecked = prefs.showStreamUrl
 		preferAd.isChecked = prefs.preferAudioDescription
 		keywords.setText(prefs.audioKeywords)
-		external.isChecked = prefs.useExternalPlayer
 		speakSubs.isChecked = prefs.speakSubtitles
 		announce.check(levels[prefs.announceLevel.coerceIn(0, 3)])
 		days.setText(prefs.epgDaysAhead.toString())
@@ -102,7 +99,6 @@ class SettingsActivity : AppCompatActivity() {
 	private fun save() {
 		prefs.preferAudioDescription = preferAd.isChecked
 		prefs.audioKeywords = keywords.text.toString().trim()
-		prefs.useExternalPlayer = external.isChecked
 		prefs.showStreamUrl = showUrl.isChecked
 		prefs.speakSubtitles = speakSubs.isChecked
 		prefs.announceLevel = levels.indexOf(announce.checkedRadioButtonId).takeIf { it >= 0 } ?: 2

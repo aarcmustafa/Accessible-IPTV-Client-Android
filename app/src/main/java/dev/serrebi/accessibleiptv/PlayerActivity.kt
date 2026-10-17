@@ -1,7 +1,6 @@
 package dev.serrebi.accessibleiptv
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -29,8 +28,11 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as M3Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
@@ -43,37 +45,63 @@ import androidx.media3.common.DeviceInfo
 import androidx.mediarouter.app.MediaRouteChooserDialog
 import androidx.mediarouter.media.MediaRouteSelector
 import com.google.android.gms.cast.framework.CastContext
+import java.io.IOException
+import java.io.InputStream
+
+/** A live HLS stream cannot be shared: it takes the one stream for itself. */
+internal fun isHlsUrl(url: String) = url.substringBefore('?').lowercase().endsWith(".m3u8")
+
+/** The key a live channel's shared tap is filed under; without a channel key the URL stands in. */
+internal fun tapKey(channelKey: String, url: String) = channelKey.ifEmpty { url }
 
 object Player {
 	/** Plays any list entry: shows open their episode list; Stalker links are fetched first. */
-	fun open(a: AppCompatActivity, ch: Channel, status: TextView? = null, external: Boolean = false) {
+	fun open(a: AppCompatActivity, ch: Channel, status: TextView? = null) {
 		if (ch.kind == Channel.KIND_SERIES) return a.startActivity(EpisodesActivity.intent(a, ch))
 		// Recently watched / Previous channel: live channels only, as on the desktop.
 		if (ch.isLive) App.of(a).prefs.addRecent(ch.key)
-		if (!ch.needsResolve) return if (external) openExternal(a, ch.url, ch.name) else play(a, ch.url, ch.name, ch.key)
+		if (!ch.needsResolve) return play(a, ch.url, ch.name, ch.key, status = status)
 		status?.status(a.getString(R.string.connecting))
 		a.lifecycleScope.launch {
 			val url = withContext(Dispatchers.IO) { runCatching { App.of(a).resolveUrl(ch) } }
-			url.onSuccess { if (external) openExternal(a, it, ch.name) else play(a, it, ch.name, ch.key) }
+			url.onSuccess { play(a, it, ch.name, ch.key, status = status) }
 				.onFailure { status?.status(a.getString(R.string.play_failed, it.message ?: "")) ?: a.alert(ch.name, it.message ?: "") }
 		}
 	}
 
-	fun play(c: Context, url: String, title: String, channelKey: String, catchup: Boolean = false) {
-		if (App.of(c).prefs.useExternalPlayer) return openExternal(c, url, title)
+	/**
+	 * Opens the player, unless the one provider stream is taken by a different channel.
+	 * The refusal is spoken here, on the screen behind, so it is heard before anything opens.
+	 */
+	fun play(c: Context, url: String, title: String, channelKey: String, catchup: Boolean = false, status: TextView? = null) {
+		val plain = M3uParser.splitHeaders(url).first
+		if (!freeFor(c, plain, channelKey, catchup)) {
+			val busy = c.getString(R.string.stream_busy)
+			if (status != null) status.status(busy) else (c as? Activity)?.alert(title, busy)
+			return
+		}
 		c.startActivity(
 			Intent(c, PlayerActivity::class.java).putExtra("url", url).putExtra("title", title)
 				.putExtra("key", channelKey).putExtra("catchup", catchup),
 		)
 	}
 
-	fun openExternal(c: Context, url: String, title: String) {
-		val plain = M3uParser.splitHeaders(url).first
-		val i = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(plain), "video/*").putExtra("title", title)
-		try {
-			c.startActivity(Intent.createChooser(i, c.getString(R.string.play_external)))
-		} catch (_: ActivityNotFoundException) {
-			(c as? Activity)?.alert(c.getString(R.string.play_external), c.getString(R.string.no_external_player))
+	/**
+	 * One provider stream per device: true when this playback may start. A live TS channel
+	 * shares the running tap; a live HLS channel and every archive, movie or file take the
+	 * stream on their own.
+	 */
+	internal fun freeFor(c: Context, plain: String, channelKey: String, catchup: Boolean): Boolean {
+		if (plain.startsWith("content://")) return true
+		val ch = if (channelKey.isEmpty()) null else App.of(c).channel(channelKey)
+		return when {
+			ch?.isLive == true && !catchup && !isHlsUrl(plain) ->
+				// A live TS channel shares the running tap; both ids it could hold are checked.
+				LiveChannels.current(ch.key) != null ||
+					(Streams.free(Streams.liveId(ch.key)) && Streams.free(Streams.hlsId(ch.key)))
+			// HLS lives cannot share, so both ids a live channel can hold must be free.
+			ch?.isLive == true && !catchup -> Streams.free(Streams.hlsId(ch.key)) && Streams.free(Streams.liveId(ch.key))
+			else -> Streams.free(Streams.urlId(plain))
 		}
 	}
 }
@@ -96,6 +124,18 @@ class PlayerActivity : AppCompatActivity() {
 	private lateinit var video: PlayerView
 	private var localFile = false
 	private var fullscreen = false
+	/** The one provider stream this screen holds, freed as soon as playback stops. */
+	private var streamId: String? = null
+	/** Live TS plays from the channel's shared tap; this is the player's place in it. */
+	private var tapSource: TapDataSource? = null
+	private var plainUrl = ""
+	private var streamHeaders: Map<String, String> = emptyMap()
+	/** Live HLS: it cannot share the tap, so it holds a stream of its own. */
+	private var hls = false
+	/** Where catch-up or a file resumes after the screen was left. */
+	private var resumeAt = 0L
+	/** The shared socket's reconnect has been announced; the next drop says it again. */
+	private var saidRetrying = false
 	/** A live channel (not catch-up, a file or VOD): drops are reconnected like the desktop. */
 	private var live = false
 	/** Catch-up or a file: the Record button does not apply. */
@@ -112,6 +152,12 @@ class PlayerActivity : AppCompatActivity() {
 	private val pace: Runnable = object : Runnable {
 		override fun run() {
 			val local = player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE
+			// The shared live socket reconnects for the whole channel: say so while it does.
+			val retrying = tapSource?.joined?.reconnecting == true
+			if (retrying != saidRetrying) {
+				saidRetrying = retrying
+				if (retrying) say(getString(R.string.reconnecting), 2)
+			}
 			// A sink warning alone is recoverable: the mark goes once playback runs again.
 			// Buffered data is no proof — a wedged stream can hold minutes of unplayable queue.
 			if (exo.isPlaying) timestampResetAt = null
@@ -163,6 +209,26 @@ class PlayerActivity : AppCompatActivity() {
 		showProgramme(announce = false)
 
 		val (plain, headers) = M3uParser.splitHeaders(url)
+		plainUrl = plain
+		streamHeaders = headers
+		localFile = plain.startsWith("content://")
+		hls = isHlsUrl(plain)
+		// One provider stream per device. A live channel is read through its shared tap, which
+		// takes the stream when the first reader opens it; anything else holds the stream here.
+		if (!Player.freeFor(this, plain, channelKey, catchup)) {
+			say(getString(R.string.stream_busy), 1)
+			finish()
+			return
+		}
+		if (!localFile && !(live && !hls)) {
+			val id = if (live) Streams.hlsId(tapKey(channelKey, plain)) else Streams.urlId(plain)
+			if (!Streams.acquire(id)) {
+				say(getString(R.string.stream_busy), 1)
+				finish()
+				return
+			}
+			streamId = id
+		}
 		val http = DefaultHttpDataSource.Factory()
 			.setUserAgent(headers["User-Agent"] ?: Net.USER_AGENT)
 			.setDefaultRequestProperties(headers - "User-Agent")
@@ -178,8 +244,14 @@ class PlayerActivity : AppCompatActivity() {
 		)
 		// Same cache as the desktop app: same seconds, same +1 s per stall, same maximum.
 		cushion = Cushion(app.prefs.bufferSeconds, app.prefs.maxBufferSeconds)
+		// A live TS channel is read from its tap, so a recording of it shares this one socket;
+		// every other request (catch-up, HLS, a file) goes to the ordinary data source.
+		val tap = TapDataSource(tapKey(channelKey, plain)) { Net.open(plain, streamHeaders) }
+		tapSource = tap
+		val base = DefaultDataSource.Factory(this, http)
+		val sources = DataSource.Factory { LiveSource(plain, { live && !hls }, tap) { base.createDataSource() } }
 		exo = ExoPlayer.Builder(this)
-			.setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http), extractors))
+			.setMediaSourceFactory(DefaultMediaSourceFactory(sources, extractors))
 			.setLoadControl(cushion)
 			.build()
 		// Pause for calls, alarms and other apps instead of talking over them, and stop when
@@ -195,7 +267,6 @@ class PlayerActivity : AppCompatActivity() {
 				}
 			}
 		})
-		localFile = plain.startsWith("content://")
 		// Devices without Google Play services (many TVs) have no Cast framework: play locally only.
 		castContext = if (localFile) null else runCatching { CastContext.getSharedInstance(this) }.getOrNull()
 		player = castContext?.let { runCatching { CastPlayer.Builder(this).setLocalPlayer(exo).build() }.getOrNull() } ?: exo
@@ -212,6 +283,12 @@ class PlayerActivity : AppCompatActivity() {
 		if (BuildConfig.DEBUG) heartbeat.run()
 		if (live) status.post(pace)
 		say(getString(R.string.connecting), 2)
+		// Handing a stream to another app cannot be limited to one connection; the old setting
+		// is ignored, and said out loud once for anyone who had it on.
+		if (app.prefs.useExternalPlayer) {
+			app.prefs.useExternalPlayer = false
+			alert(getString(R.string.play_external), getString(R.string.stream_external_blocked))
+		}
 
 		pause.setOnClickListener {
 			if (player.isPlaying) player.pause()
@@ -242,6 +319,7 @@ class PlayerActivity : AppCompatActivity() {
 					Recorder.stop(this, c.key)
 					say(getString(R.string.recording_stopped, c.name), 2)
 				}
+				!Recorder.canStart(c) -> say(getString(R.string.stream_busy), 1)
 				else -> {
 					Recorder.start(this, c, app.epg.nowNext(c).now?.title.orEmpty())
 					say(getString(R.string.recording_channel, c.name), 2)
@@ -257,7 +335,14 @@ class PlayerActivity : AppCompatActivity() {
 		if (ch == null && channelKey.isNotEmpty()) lifecycleScope.launch {
 			// Android can restore this activity before the main screen reloads the channel cache.
 			val restored = app.findChannel(channelKey, App.LIVE)
+			val wasLive = live
 			live = !catchup && restored?.isLive == true
+			// The item was prepared before the channel was known: a live TS stream takes its tap now.
+			if (live && !wasLive && !localFile && !hls) {
+				streamId?.let { Streams.release(it) }
+				streamId = null
+				prepareLive()
+			}
 			if (live) status.post(pace)
 			showProgramme(announce = false)
 		}
@@ -291,6 +376,8 @@ class PlayerActivity : AppCompatActivity() {
 
 		override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
 			val remote = deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE
+			// The TV reads the stream itself, so the phone must let go of its connection.
+			if (remote) releaseStream() else reclaimStream()
 			castButton.setText(if (remote) R.string.stop_casting else R.string.cast)
 			say(
 				if (remote) getString(R.string.casting_to, castContext?.sessionManager?.currentCastSession?.castDevice?.friendlyName.orEmpty())
@@ -414,6 +501,26 @@ class PlayerActivity : AppCompatActivity() {
 		return true
 	}
 
+	/**
+	 * Takes the one provider stream this screen needs again: a live TS channel is taken by its
+	 * tap when the media is opened, everything else by the gate here. False = another stream
+	 * is in use, which the caller says out loud.
+	 */
+	private fun reclaimStream(): Boolean {
+		if (localFile || streamId != null || (live && !hls)) return true
+		val id = if (live) Streams.hlsId(tapKey(channelKey, plainUrl)) else Streams.urlId(plainUrl)
+		if (!Streams.acquire(id)) return false
+		streamId = id
+		return true
+	}
+
+	/** Frees the one provider stream this screen held: the next stream may start now. */
+	private fun releaseStream() {
+		streamId?.let { Streams.release(it) }
+		streamId = null
+		tapSource?.close()
+	}
+
 	private fun prepareLive() {
 		val item = player.currentMediaItem ?: return
 		timestampResetAt = null
@@ -528,23 +635,48 @@ class PlayerActivity : AppCompatActivity() {
 
 	override fun onStop() {
 		super.onStop()
+		cancelRetry()
+	}
+
+	/**
+	 * A hidden player must not hold the provider's socket: the stream has to be free for a
+	 * recording or another channel before anything else starts. Playing resumes in [onStart].
+	 */
+	override fun onPause() {
+		super.onPause()
+		// Refused before the player existed (another stream is in use): nothing is playing.
+		if (!this::player.isInitialized) return
+		if (player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE || pausedByStop) return
+		// Catch-up and files resume where they were; a live channel starts at the live edge again.
+		if (!live && exo.playbackState != M3Player.STATE_IDLE) resumeAt = exo.currentPosition
+		pausedByStop = true
+		timestampResetAt = null
+		cancelRetry()
+		status.removeCallbacks(pace)
+		player.stop() // closes the data source, which leaves the tap
+		releaseStream()
+	}
+
+	private fun cancelRetry() {
 		retryJob?.let { retry.removeCallbacks(it) }
 		retryJob = null
-		// Leaving the app stops local playback; a cast session keeps playing on the TV.
-		if (player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE && player.playWhenReady) {
-			player.pause()
-			pausedByStop = true
-		}
 	}
 
 	override fun onStart() {
 		super.onStart()
 		// The recording may have been stopped from its notification while the app was away.
 		updateRecordButton()
-		// Back in the app: live TV picks up at the live edge, not minutes behind where it stopped.
-		if (!pausedByStop) return
+		if (!pausedByStop || player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return
 		pausedByStop = false
-		if (live) prepareLive()
+		if (!reclaimStream()) return say(getString(R.string.stream_busy), 1)
+		// Back in the app: live TV picks up at the live edge, not minutes behind where it stopped.
+		if (live) {
+			prepareLive()
+			status.post(pace)
+		} else {
+			player.seekTo(resumeAt)
+			player.prepare()
+		}
 		player.play()
 	}
 
@@ -552,7 +684,79 @@ class PlayerActivity : AppCompatActivity() {
 		retry.removeCallbacksAndMessages(null)
 		findViewById<View>(R.id.nowPlaying).removeCallbacks(programmeTick)
 		status.removeCallbacks(pace)
-		player.release() // releases the wrapped local player too
+		if (this::player.isInitialized) {
+			releaseStream()
+			player.release() // releases the wrapped local player too
+		}
 		super.onDestroy()
 	}
+}
+
+/**
+ * Routes each request to the shared live tap or to the ordinary data source: a live TS
+ * channel plays from the tap (one socket, shared with any recording of it) while every other
+ * request — catch-up, HLS, a file — opens normally. Live-ness is read per request, because a
+ * restored player learns its channel after the item was prepared.
+ */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private class LiveSource(
+	private val plain: String,
+	private val live: () -> Boolean,
+	private val tap: TapDataSource,
+	private val base: () -> DataSource,
+) : DataSource {
+	private var use: DataSource = tap
+	private var uri: Uri = Uri.EMPTY
+
+	override fun open(dataSpec: DataSpec): Long {
+		uri = dataSpec.uri
+		use = if (live() && dataSpec.uri.toString() == plain) tap else base()
+		return use.open(dataSpec)
+	}
+
+	override fun read(buffer: ByteArray, offset: Int, length: Int): Int = use.read(buffer, offset, length)
+
+	override fun getUri(): Uri? = if (use === tap) uri else use.uri
+
+	override fun close() = use.close()
+
+	override fun addTransferListener(transferListener: TransferListener) = Unit
+}
+
+/**
+ * Plays a live channel from its shared tap instead of opening a second provider connection:
+ * opening joins the channel (a recording of the same channel joins the same one) and starts
+ * at the live edge; closing leaves it, and the last reader closes the socket.
+ */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private class TapDataSource(private val key: String, private val open: () -> InputStream) : DataSource {
+	private var channel: LiveChannel? = null
+	private var input: InputStream? = null
+	private var uri: Uri = Uri.EMPTY
+
+	/** The shared channel this reader has, while it has it: watched for reconnecting. */
+	val joined: LiveChannel? get() = channel?.takeIf { !it.isClosed }
+
+	override fun open(dataSpec: DataSpec): Long {
+		uri = dataSpec.uri
+		close()
+		val joining = LiveChannels.attach(key, open) ?: throw IOException("Another stream is in use")
+		channel = joining
+		input = joining.reader()
+		// A live stream has no length, and nothing before the live edge is worth having.
+		return C.LENGTH_UNSET.toLong()
+	}
+
+	override fun read(buffer: ByteArray, offset: Int, length: Int): Int = input?.read(buffer, offset, length) ?: -1
+
+	override fun getUri(): Uri = uri
+
+	override fun close() {
+		runCatching { input?.close() }
+		input = null
+		channel?.let { LiveChannels.leave(it) }
+		channel = null
+	}
+
+	override fun addTransferListener(transferListener: TransferListener) = Unit
 }

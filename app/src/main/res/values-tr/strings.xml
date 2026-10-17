@@ -56,7 +56,8 @@
 	<string name="allow_installs">Bu uygulamaya yükleme izni verin, sonra yeniden deneyin.</string>
 	<string name="update_failed">Güncelleme başarısız: %1$s</string>
 	<string name="play_external">Başka uygulamada oynat</string>
-	<string name="no_external_player">Başka oynatıcı yüklü değil.</string>
+	<string name="stream_busy">Başka bir yayın kullanımda. Önce onu durdurun.</string>
+	<string name="stream_external_blocked">Tek bağlantı için yerleşik oynatıcıyı kullanın.</string>
 	<string name="add_favorite">Favorilere ekle</string>
 	<string name="remove_favorite">Favorilerden çıkar</string>
 	<string name="added_favorite">%1$s eklendi.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Tercih edilen ses, virgülle ayrılmış</string>
 	<string name="preferred_tracks_hint">Türkçe, İngilizce</string>
 	<string name="playback_heading">Oynatma</string>
-	<string name="use_external_player">Başka bir oynatıcı uygulaması kullan</string>
 	<string name="guide_heading">Rehber</string>
 	<string name="guide_days">İleri rehber günü (1–14)</string>
 	<string name="show_stream_url">Yayın URL’sini göster</string>

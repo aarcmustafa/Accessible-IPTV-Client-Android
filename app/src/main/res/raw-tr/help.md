@@ -20,7 +20,7 @@ Kumanda veya klavyedeki rakam tuşları o kanal numarasına atlar.
 
 Oynatmak için etkinleştirin. Bir dizi bölümlerini açar.
 
-Eylemler menüsü: başka uygulamada oynat, favori, ayrıntılar, rehber, kaydet veya kaydı durdur, indir. TalkBack olmadan: uzun basma veya Menü tuşu.
+Eylemler menüsü: favori, ayrıntılar, rehber, kaydet veya kaydı durdur, indir. TalkBack olmadan: uzun basma veya Menü tuşu.
 
 # Rehber
 
@@ -40,6 +40,8 @@ Program değişince oynatıcı şimdi neyin yayında olduğunu söyler. Ayarlar,
 
 Kopan canlı yayın kendiliğinden yeniden bağlanır.
 
+Cihaz başına tek sağlayıcı yayını kullanılabilir. Aynı canlı TS yayınını izlemek, başka ekrana aktarmak ve kaydetmek bu yayını paylaşır; mevcut yayın durdurulana kadar farklı bir yayın reddedilir. Başka uygulamaların bağlantıları sınırlanamadığı için harici oynatıcıya aktarım kullanılamaz.
+
 # Kayıtlar
 
 Movies/AccessibleIPTV klasörüne kaydedilir. Süren kayıtlar en üsttedir; durdurmak için birini etkinleştirin.
@@ -47,6 +49,8 @@ Movies/AccessibleIPTV klasörüne kaydedilir. Süren kayıtlar en üsttedir; dur
 Planlı kayıtlar bitişten 2 dakika sonrasına kadar sürer ve yeniden başlatmadan etkilenmez. Önce ve sonra dakikalarını Ayarlar’dan değiştirin.
 
 Erken biten bir geri izleme indirmesi yeniden indirilir.
+
+HLS istekleri sırayla gerçekleştirilir. İndirmeler yayını tek başına kullanır.
 
 # Ayarlar
 

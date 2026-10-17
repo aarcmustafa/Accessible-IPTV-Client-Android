@@ -20,7 +20,7 @@ Poprzedni kanał, Ostatnio oglądane, Przejdź do numeru kanału, Odśwież list
 
 Aktywuj, aby odtworzyć. Serial otwiera swoje odcinki.
 
-Menu akcji: odtwórz w innej aplikacji, ulubione, szczegóły, program, nagraj lub zatrzymaj nagrywanie, pobierz. Bez TalkBack: długie naciśnięcie lub klawisz Menu.
+Menu akcji: ulubione, szczegóły, program, nagraj lub zatrzymaj nagrywanie, pobierz. Bez TalkBack: długie naciśnięcie lub klawisz Menu.
 
 # Program
 
@@ -40,6 +40,8 @@ Gdy zmienia się audycja, odtwarzacz mówi, co jest teraz. Ustawienia, Komunikat
 
 Przerwany strumień na żywo łączy się ponownie sam.
 
+Jeden strumień dostawcy na urządzenie. Oglądanie, przesyłanie i nagrywanie tego samego strumienia TS na żywo współdzielą go; inny strumień jest odrzucany do czasu zatrzymania bieżącego. Przekazanie do zewnętrznego odtwarzacza jest niedostępne, ponieważ nie można ograniczyć połączeń innej aplikacji.
+
 # Nagrania
 
 Zapisywane w Movies/AccessibleIPTV. Trwające nagrania są na początku; aktywuj jedno, aby je zatrzymać.
@@ -47,6 +49,8 @@ Zapisywane w Movies/AccessibleIPTV. Trwające nagrania są na początku; aktywuj
 Zaplanowane nagrania trwają 2 minuty po końcu i przetrwają ponowne uruchomienie. Minuty przed i po zmienisz w Ustawieniach.
 
 Pobieranie z archiwum, które skończy się za wcześnie, jest ponawiane.
+
+Żądania HLS są wykonywane pojedynczo. Pobieranie wymaga wyłącznego dostępu do strumienia.
 
 # Ustawienia
 

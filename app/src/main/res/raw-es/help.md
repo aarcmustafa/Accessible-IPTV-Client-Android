@@ -20,7 +20,7 @@ Canal anterior, Vistos recientemente, Ir al número de canal, Actualizar listas,
 
 Actívalo para reproducir. Una serie abre sus episodios.
 
-Menú de acciones: reproducir en otra app, favorito, detalles, guía, grabar o detener la grabación, descargar. Sin TalkBack: pulsación larga o la tecla Menú.
+Menú de acciones: favorito, detalles, guía, grabar o detener la grabación, descargar. Sin TalkBack: pulsación larga o la tecla Menú.
 
 # Guía
 
@@ -40,6 +40,8 @@ Cuando cambia el programa, el reproductor dice lo que se emite ahora. Ajustes, A
 
 Una emisión en directo que se corta se reconecta sola.
 
+Una transmisión del proveedor por dispositivo. Ver, enviar y grabar la misma transmisión TS en directo comparten esa transmisión; se rechaza cualquier otra hasta detener la actual. No se puede usar un reproductor externo porque no se pueden limitar las conexiones de otra app.
+
 # Grabaciones
 
 Se guardan en Movies/AccessibleIPTV. Las grabaciones en curso aparecen primero; activa una para detenerla.
@@ -47,6 +49,8 @@ Se guardan en Movies/AccessibleIPTV. Las grabaciones en curso aparecen primero; 
 Las grabaciones programadas siguen 2 minutos tras el final y sobreviven a un reinicio. Cambia los minutos antes y después en Ajustes.
 
 Una descarga en diferido que termina antes de tiempo se vuelve a descargar.
+
+Las solicitudes HLS se realizan de una en una. Las descargas necesitan el uso exclusivo de la transmisión.
 
 # Ajustes
 

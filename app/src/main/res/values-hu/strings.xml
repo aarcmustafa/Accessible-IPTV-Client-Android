@@ -56,7 +56,8 @@
 	<string name="allow_installs">Engedélyezze a telepítést ebből az alkalmazásból, majd próbálja újra.</string>
 	<string name="update_failed">Sikertelen frissítés: %1$s</string>
 	<string name="play_external">Lejátszás másik alkalmazásban</string>
-	<string name="no_external_player">Nincs másik lejátszó telepítve.</string>
+	<string name="stream_busy">Másik adatfolyam van használatban. Előbb állítsa le.</string>
+	<string name="stream_external_blocked">Egyetlen kapcsolathoz használja a beépített lejátszót.</string>
 	<string name="add_favorite">Hozzáadás a kedvencekhez</string>
 	<string name="remove_favorite">Eltávolítás a kedvencekből</string>
 	<string name="added_favorite">%1$s hozzáadva.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Kedvelt hang, vesszővel elválasztva</string>
 	<string name="preferred_tracks_hint">Magyar, Angol</string>
 	<string name="playback_heading">Lejátszás</string>
-	<string name="use_external_player">Másik lejátszó alkalmazás használata</string>
 	<string name="guide_heading">Műsorújság</string>
 	<string name="guide_days">Műsorújság napjai előre (1–14)</string>
 	<string name="show_stream_url">Adatfolyam URL megjelenítése</string>

@@ -56,7 +56,8 @@
 	<string name="allow_installs">Permita instalações por este app e tente de novo.</string>
 	<string name="update_failed">Falha na atualização: %1$s</string>
 	<string name="play_external">Reproduzir em outro app</string>
-	<string name="no_external_player">Nenhum outro player instalado.</string>
+	<string name="stream_busy">Outra transmissão está em uso. Pare-a primeiro.</string>
+	<string name="stream_external_blocked">Use o player integrado para manter uma única conexão.</string>
 	<string name="add_favorite">Adicionar aos favoritos</string>
 	<string name="remove_favorite">Remover dos favoritos</string>
 	<string name="added_favorite">%1$s adicionado.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Áudio preferido, separado por vírgulas</string>
 	<string name="preferred_tracks_hint">Português, Inglês</string>
 	<string name="playback_heading">Reprodução</string>
-	<string name="use_external_player">Usar outro app de reprodução</string>
 	<string name="guide_heading">Guia</string>
 	<string name="guide_days">Dias de guia (1 a 14)</string>
 	<string name="show_stream_url">Mostrar URL do fluxo</string>

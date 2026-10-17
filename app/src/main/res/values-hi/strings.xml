@@ -56,7 +56,8 @@
 	<string name="allow_installs">इस ऐप को इंस्टॉल की अनुमति दें, फिर दोबारा कोशिश करें।</string>
 	<string name="update_failed">अपडेट विफल: %1$s</string>
 	<string name="play_external">दूसरे ऐप में चलाएँ</string>
-	<string name="no_external_player">कोई दूसरा प्लेयर इंस्टॉल नहीं है।</string>
+	<string name="stream_busy">दूसरी स्ट्रीम चल रही है। पहले उसे रोकें।</string>
+	<string name="stream_external_blocked">एक ही कनेक्शन रखने के लिए ऐप के प्लेयर का उपयोग करें।</string>
 	<string name="add_favorite">पसंदीदा में जोड़ें</string>
 	<string name="remove_favorite">पसंदीदा से हटाएँ</string>
 	<string name="added_favorite">%1$s जोड़ा गया।</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">पसंदीदा ऑडियो, अल्पविराम से अलग</string>
 	<string name="preferred_tracks_hint">हिन्दी, अंग्रेज़ी</string>
 	<string name="playback_heading">प्लेबैक</string>
-	<string name="use_external_player">दूसरा प्लेयर ऐप इस्तेमाल करें</string>
 	<string name="guide_heading">गाइड</string>
 	<string name="guide_days">आगे के गाइड दिन (1 से 14)</string>
 	<string name="show_stream_url">स्ट्रीम URL दिखाएँ</string>

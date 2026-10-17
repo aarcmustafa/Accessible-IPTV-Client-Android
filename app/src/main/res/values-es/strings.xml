@@ -56,7 +56,8 @@
 	<string name="allow_installs">Permite instalar desde esta app y vuelve a intentarlo.</string>
 	<string name="update_failed">Error al actualizar: %1$s</string>
 	<string name="play_external">Reproducir en otra app</string>
-	<string name="no_external_player">No hay otro reproductor instalado.</string>
+	<string name="stream_busy">Hay otra transmisión en uso. Deténgala primero.</string>
+	<string name="stream_external_blocked">Use el reproductor integrado para mantener una sola conexión.</string>
 	<string name="add_favorite">Añadir a favoritos</string>
 	<string name="remove_favorite">Quitar de favoritos</string>
 	<string name="added_favorite">%1$s añadido.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Audio preferido, separado por comas</string>
 	<string name="preferred_tracks_hint">Español, Inglés</string>
 	<string name="playback_heading">Reproducción</string>
-	<string name="use_external_player">Usar otra app de reproducción</string>
 	<string name="guide_heading">Guía</string>
 	<string name="guide_days">Días de guía (1 a 14)</string>
 	<string name="show_stream_url">Mostrar URL del canal</string>

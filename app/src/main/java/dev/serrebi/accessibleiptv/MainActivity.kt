@@ -157,7 +157,6 @@ class MainActivity : AppCompatActivity() {
 
 	private fun channelActions(ch: Channel, fav: Boolean): List<RowAction> {
 		val out = ArrayList<RowAction>()
-		if (ch.kind != Channel.KIND_SERIES) out += RowAction(getString(R.string.play_external)) { Player.open(this, ch, status, external = true) }
 		out += RowAction(getString(if (fav) R.string.remove_favorite else R.string.add_favorite)) {
 			val now = app.prefs.toggleFavorite(ch.key)
 			status.status(getString(if (now) R.string.added_favorite else R.string.removed_favorite, ch.name))
@@ -171,13 +170,20 @@ class MainActivity : AppCompatActivity() {
 				Recorder.stop(this, ch.key)
 				status.status(getString(R.string.recording_stopped, ch.name))
 			} else RowAction(getString(R.string.record_now)) {
-				Recorder.start(this, ch, app.epg.nowNext(ch).now?.title.orEmpty())
-				status.status(getString(R.string.recording_channel, ch.name))
+				// One provider stream per device: say so instead of starting nothing.
+				if (!Recorder.canStart(ch)) status.status(getString(R.string.stream_busy))
+				else {
+					Recorder.start(this, ch, app.epg.nowNext(ch).now?.title.orEmpty())
+					status.status(getString(R.string.recording_channel, ch.name))
+				}
 			}
 		} else if (ch.kind == Channel.KIND_MOVIE || ch.kind == Channel.KIND_EPISODE) {
 			out += RowAction(getString(R.string.download)) {
-				Recorder.download(this, ch.url, ch.name, "")
-				status.status(getString(R.string.downloading, ch.name))
+				if (!Recorder.canStart(ch)) status.status(getString(R.string.stream_busy))
+				else {
+					Recorder.download(this, ch.url, ch.name, "")
+					status.status(getString(R.string.downloading, ch.name))
+				}
 			}
 		}
 		return out

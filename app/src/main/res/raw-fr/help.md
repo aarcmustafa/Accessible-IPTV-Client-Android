@@ -20,7 +20,7 @@ Chaîne précédente, Vus récemment, Aller au numéro de chaîne, Actualiser le
 
 Activez pour lire. Une série ouvre ses épisodes.
 
-Menu d’actions : lire dans une autre app, favori, détails, guide, enregistrer ou arrêter l’enregistrement, télécharger. Sans TalkBack : appui long ou touche Menu.
+Menu d’actions : favori, détails, guide, enregistrer ou arrêter l’enregistrement, télécharger. Sans TalkBack : appui long ou touche Menu.
 
 # Guide
 
@@ -40,6 +40,8 @@ Quand le programme change, le lecteur annonce ce qui passe. Réglages, Annonces 
 
 Un direct qui se coupe se reconnecte tout seul.
 
+Un flux du fournisseur par appareil. Le visionnage, la diffusion et l’enregistrement du même flux TS en direct le partagent ; tout autre flux est refusé jusqu’à l’arrêt du flux actuel. Le transfert vers un lecteur externe est indisponible, car les connexions d’une autre app ne peuvent pas être limitées.
+
 # Enregistrements
 
 Enregistrés dans Movies/AccessibleIPTV. Les enregistrements en cours sont listés en premier ; activez-en un pour l’arrêter.
@@ -47,6 +49,8 @@ Enregistrés dans Movies/AccessibleIPTV. Les enregistrements en cours sont list�
 Les enregistrements programmés continuent 2 minutes après la fin et survivent à un redémarrage. Changez les minutes avant et après dans Réglages.
 
 Un téléchargement de replay qui s’arrête trop tôt est relancé.
+
+Les requêtes HLS sont effectuées une à une. Les téléchargements nécessitent l’usage exclusif du flux.
 
 # Réglages
 

@@ -192,7 +192,7 @@ class ProgrammesActivity : ListScreen() {
 		if (p.description.isNotBlank()) actions += RowAction(getString(R.string.programme_details)) { alert(p.title, detailsText(p)) }
 		if (p.stop > now) actions += RowAction(getString(R.string.schedule_recording)) { schedule(p, ch) }
 		if (catchupState(p, ch, now)) actions += RowAction(getString(R.string.download)) {
-			withCatchup(p, ch) { url ->
+			if (!Recorder.canDownload()) status.status(getString(R.string.stream_busy)) else withCatchup(p, ch) { url ->
 				Recorder.download(this, url, ch.name, p.title, expectMs = p.stop - p.start)
 				status.status(getString(R.string.downloading, p.title))
 			}

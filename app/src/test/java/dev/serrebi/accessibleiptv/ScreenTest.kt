@@ -24,6 +24,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.android.controller.ActivityController
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowDialog
 import org.robolectric.shadows.ShadowPopupMenu
@@ -33,13 +34,20 @@ import java.time.Duration
 @RunWith(RobolectricTestRunner::class)
 class ScreenTest {
 	private val server = FakeServer()
+	/** Players built by the tests, destroyed afterwards so the one stream is free again. */
+	private val players = mutableListOf<ActivityController<PlayerActivity>>()
 	private val app get() = RuntimeEnvironment.getApplication() as App
 
 	@Before fun quiet() {
 		app.prefs.lastUpdateCheck = System.currentTimeMillis() // no GitHub call from tests
 	}
 
-	@After fun stop() = server.close()
+	@After fun stop() {
+		// A player holds the one provider stream; one left undestroyed would refuse the next test.
+		players.forEach { it.pause().stop().destroy() }
+		players.clear()
+		server.close()
+	}
 
 	private fun waitUntil(ms: Long = 5_000, cond: () -> Boolean) {
 		val end = System.currentTimeMillis() + ms
@@ -403,7 +411,7 @@ class ScreenTest {
 	private fun player(url: String, key: String, catchup: Boolean = false) = Robolectric.buildActivity(
 		PlayerActivity::class.java,
 		Intent(app, PlayerActivity::class.java).putExtra("url", url).putExtra("title", "BBC One").putExtra("key", key).putExtra("catchup", catchup),
-	)
+	).also { players += it }
 
 	@Test fun playerControlsAreRealLabelledButtons() {
 		val a = player("${server.url}/live.ts", "").setup().get()

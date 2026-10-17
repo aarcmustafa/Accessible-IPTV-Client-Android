@@ -7,9 +7,11 @@ One APK for phones, tablets and Android TV, Android 10 (API 29) and up.
 
 - `gradlew testDebugUnitTest assembleDebug` - JVM tests + debug APK at `app/build/outputs/apk/debug/`.
   Run it before every release; all tests must pass.
-- Tests (`app/src/test`): `ParsingTest`/`CoreTest` pure JVM; `ProviderTest`, `GuideTest`, `AppTest`, `ScreenTest`
-  run under Robolectric (SDK 36, `robolectric.properties`) against `FakeServer` (JDK `HttpServer` on 127.0.0.1).
+- Tests (`app/src/test`): `ParsingTest`/`CoreTest`/`HlsTest` pure JVM; `ProviderTest`, `GuideTest`, `AppTest`, `ScreenTest`,
+  `SingleConnectionTest`, `LiveChannelTest` run under Robolectric (SDK 36, `robolectric.properties`) against `FakeServer`
+  (JDK `HttpServer` on 127.0.0.1).
   JDK 21 needs `--add-opens=java.base/jdk.internal.access=ALL-UNNAMED` (set in `testOptions`).
+  The stream gate is process-wide: a test that builds a player must destroy it (its `@After` does), or the next test is refused.
   A new provider quirk or user-visible bug gets a test here first.
 - `lintDebug` passes: Media3 APIs opt in through `androidx.annotation.OptIn`. Any lint error is new.
 - AGP 9.4.1 (built-in Kotlin), Kotlin 2.4.20, Gradle 9.8.0, JDK 21, compile/target SDK 37, min SDK 29.
@@ -44,9 +46,17 @@ cvs-health/android-view-accessibility-techniques.
 - M3U channel id = `tvg-id|name` (+`#n` for repeats), never list position: favourites, remembered tracks and schedules key on it.
   `#EXTVLCOPT`/`http-user-agent` headers ride in the URL's `|Key=Value` tail; `x-tvg-url` fills a blank guide URL.
 - `Recorder.kt` - specialUse foreground service writes `.ts` to MediaStore `Movies/AccessibleIPTV`; reconnects drops until the end time.
+  Live TS recordings ride the shared `LiveChannel` tap (so recording what you watch opens no second connection);
+  `.m3u8` downloads go through `Hls.download` (one request at a time), and a download takes the stream exclusively.
   Not dataSync: Android 15 stops dataSync after 6 h a day. `USE_EXACT_ALARM` (sideloaded, no Play policy) keeps exact alarms on
   Android 14+, where `SCHEDULE_EXACT_ALARM` is denied by default; without an exact alarm the background service start is refused.
   The copy loop holds a partial wake lock (screen off starves it otherwise); a schedule that cannot start stays listed and notifies.
+- One provider stream per device (`LiveChannel.kt`): `Streams` is the gate every socket takes — `live:<key>` (a live
+  channel's tap or a live HLS recording), `hls:<key>` (HLS playback), `url:<url>` (VOD, catch-up), `dl:<url>` (a download).
+  `LiveChannel` owns one live TS socket and fans it out through `Tap` (8 MB, drop-oldest; a reconnect clears it so readers
+  continue at the live edge); the player and a recording of the same channel are two readers of that one socket.
+  A second, different stream is refused with `stream_busy` — check `Player.freeFor`/`Recorder.canStart` before starting.
+  HLS lives cannot share, so recording one is refused while it is watched.
 - Guide import builds `prog_new`/`gch_new` and swaps on success: a failed download keeps the old guide.
   An import with no guide URL, or none with channels to match, does nothing at all (it used to swap in empty tables and wipe the guide); a
   finished import counts as fresh for a day even when nothing matched, so a huge guide is not re-fetched on
@@ -68,6 +78,8 @@ cvs-health/android-view-accessibility-techniques.
 - Sections live / movies / series (`App.load(section)`); movies and series load only when opened.
   Big lists MUST stream: `Net.forEachObject` + `JsonReader` cache reader. Reading get_vod_streams whole (130 MB) crashed with OOM. `largeHeap` is on.
 - Cast: `CastPlayer.Builder(ctx).setLocalPlayer(exo)` wraps the local player and transfers by itself; skipped when Play services are missing.
+  On transfer the phone lets go of the stream (Media3 stops the inactive player), so the TV's own connection is the only one. An external
+  player handoff is gone: another app's connections cannot be limited.
 
 - Player status lines go through `say(text, priority)`: spoken only up to Settings, Announcements (desktop levels 1-3).
   The status line stays visible in full screen, so its live region keeps announcing there.
@@ -79,6 +91,8 @@ cvs-health/android-view-accessibility-techniques.
   start 4.9 s, 0 stalls, 10 s cushion at ~165 s. Cold IPTVCanada tunes can take ~12 s server-side (provider TTFB).
 - Player: live channels reconnect like the desktop (`Reconnect`: 0.4, 2, 4, 8, 8, 8 s, reset after 2 min); catch-up and files do not.
   A reconnect starts with the quick-start buffer and never grows the cushion; ExoPlayer holds audio focus and stops on headphones unplug (0.2.16).
+  A hidden player does not hold the socket (`onPause` stops and frees the stream; `onStart` re-prepares — live at the live edge, catch-up where it was);
+  the player watches the shared socket's own reconnect and says `reconnecting` from the `pace` tick.
 - Player traps: keep `FLAG_DETECT_ACCESS_UNITS` on the TS extractor (re-encoded IPTV H.264 has no AUD NALs -> audio only without it). Live streams arrive at real time: keep the short rebuffer target in `DefaultLoadControl`.
 - Edge to edge: `App.keepContentClearOfSystemBars()` pads every activity's content by bars/cutout/IME. Do not remove; Samsung's taskbar covered the player buttons.
 

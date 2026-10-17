@@ -56,7 +56,8 @@
 	<string name="allow_installs">Zezwól na instalację z tej aplikacji i spróbuj ponownie.</string>
 	<string name="update_failed">Błąd aktualizacji: %1$s</string>
 	<string name="play_external">Odtwórz w innej aplikacji</string>
-	<string name="no_external_player">Brak innego odtwarzacza.</string>
+	<string name="stream_busy">Inny strumień jest w użyciu. Najpierw go zatrzymaj.</string>
+	<string name="stream_external_blocked">Użyj wbudowanego odtwarzacza, aby zachować jedno połączenie.</string>
 	<string name="add_favorite">Dodaj do ulubionych</string>
 	<string name="remove_favorite">Usuń z ulubionych</string>
 	<string name="added_favorite">Dodano %1$s.</string>
@@ -142,7 +143,6 @@
 	<string name="preferred_tracks">Preferowany dźwięk, po przecinku</string>
 	<string name="preferred_tracks_hint">Polski, Angielski</string>
 	<string name="playback_heading">Odtwarzanie</string>
-	<string name="use_external_player">Użyj innej aplikacji odtwarzacza</string>
 	<string name="guide_heading">Program</string>
 	<string name="guide_days">Dni programu do przodu (1–14)</string>
 	<string name="show_stream_url">Pokaż URL strumienia</string>

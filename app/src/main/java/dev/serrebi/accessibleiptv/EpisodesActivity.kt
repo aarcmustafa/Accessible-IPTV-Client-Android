@@ -19,10 +19,12 @@ class EpisodesActivity : ListScreen() {
 		adapter = RowAdapter { ep, row, l1, _ ->
 			l1.text = ep.name
 			val actions = mutableListOf(
-				RowAction(getString(R.string.play_external)) { Player.open(this, ep, status, external = true) },
 				RowAction(getString(R.string.download)) {
-					Recorder.download(this, ep.url, showName, ep.name)
-					status.status(getString(R.string.downloading, ep.name))
+					if (!Recorder.canStart(ep)) status.status(getString(R.string.stream_busy))
+					else {
+						Recorder.download(this, ep.url, showName, ep.name)
+						status.status(getString(R.string.downloading, ep.name))
+					}
 				},
 			)
 			ep.attrs["plot"]?.takeIf { it.isNotBlank() }?.let { plot -> actions.add(0, RowAction(getString(R.string.programme_details)) { alert(ep.name, plot) }) }

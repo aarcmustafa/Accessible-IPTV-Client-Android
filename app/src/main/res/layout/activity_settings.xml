@@ -24,13 +24,6 @@
 		<TextView android:id="@+id/hPlayback" style="@style/Heading" android:text="@string/playback_heading" />
 
 		<CheckBox
-			android:id="@+id/external"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:minHeight="48dp"
-			android:text="@string/use_external_player" />
-
-		<CheckBox
 			android:id="@+id/showUrl"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
