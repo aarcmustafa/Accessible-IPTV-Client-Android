@@ -146,8 +146,9 @@ class PlayerActivity : AppCompatActivity() {
 	private var timestampResetAt: Long? = null
 
 	/**
-	 * Quick start, then build the cushion: a live stream plays 5% slow
-	 * until the full cushion is buffered (Cushion.speedFor), checked once a second.
+	 * Watches playback once a second: the shared live socket's reconnect, and a live stream
+	 * left stuck by a timestamp reset. Playback speed is never touched - the cushion fills
+	 * from what the server hands over ahead of real time (Cushion).
 	 */
 	private val pace: Runnable = object : Runnable {
 		override fun run() {
@@ -167,10 +168,6 @@ class PlayerActivity : AppCompatActivity() {
 				android.util.Log.w("AiptvPlayer", "timestamp reset left live playback stuck; recovering")
 				timestampResetAt = null
 				tryReconnect()
-			}
-			if (exo.isPlaying && player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE) {
-				val want = cushion.speedFor(exo.totalBufferedDuration * 1000, exo.playbackParameters.speed)
-				if (want != exo.playbackParameters.speed) exo.setPlaybackSpeed(want)
 			}
 			status.postDelayed(this, 1_000)
 		}

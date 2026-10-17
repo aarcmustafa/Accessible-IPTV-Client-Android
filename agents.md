@@ -84,11 +84,12 @@ cvs-health/android-view-accessibility-techniques.
 - Player status lines go through `say(text, priority)`: spoken only up to Settings, Announcements (desktop levels 1-3).
   The status line stays visible in full screen, so its live region keeps announcing there.
 - Debug builds log buffer depth every 2 s (tag AiptvPlayer, `beat`): tells a slow feed from a delivery gap.
-- Quick start (0.2.10): playback starts on 0.5 s buffered (`Cushion.QUICK_START_SECONDS`), then plays at 0.95 until the
-  Settings buffer (default 25 s for every provider; saved defaults 6/10 read as 25, max 18 reads as 30) is held, then 1.0. Other
-  explicit settings are kept and the maximum is at least the base. After a stall it waits for the full
-  cushion. Live TS arrives at real time, so slow play is the only way a player cushion grows. Sky Crime on the TV:
-  start 4.9 s, 0 stalls, 10 s cushion at ~165 s. Cold IPTVCanada tunes can take ~12 s server-side (provider TTFB).
+- Quick start (0.2.10): playback starts on 0.5 s buffered (`Cushion.QUICK_START_SECONDS`) and the cushion loads
+  behind it. Filling never slows playback down (0.2.18, and the desktop's rule): the speed stays 1.0, and the
+  cushion only grows from what the server hands over ahead of real time. Settings buffer (default 25 s for every
+  provider; saved defaults 6/10 read as 25, max 18 reads as 30) is the target; other explicit settings are kept and
+  the maximum is at least the base. After a stall it waits for the full cushion. Cold IPTVCanada tunes can take ~12 s
+  server-side (provider TTFB).
 - Player: live channels reconnect like the desktop (`Reconnect`: 0.4, 2, 4, 8, 8, 8 s, reset after 2 min); catch-up and files do not.
   A reconnect starts with the quick-start buffer and never grows the cushion; ExoPlayer holds audio focus and stops on headphones unplug (0.2.16).
   A hidden player does not hold the socket (`onPause` stops and frees the stream; `onStart` re-prepares — live at the live edge, catch-up where it was);

@@ -14,8 +14,8 @@ android {
 		applicationId = "dev.serrebi.accessibleiptv"
 		minSdk = libs.versions.android.minSdk.get().toInt()
 		targetSdk = libs.versions.android.targetSdk.get().toInt()
-		versionCode = 19
-		versionName = "0.2.17"
+		versionCode = 20
+		versionName = "0.2.18"
 	}
 
 	buildFeatures {

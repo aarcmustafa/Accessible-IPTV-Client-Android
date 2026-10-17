@@ -109,23 +109,22 @@ class CoreTest {
 		assertTrue("never more than the cushion itself", Cushion(0.25, 8.0).shouldStartPlayback(params(0.25, rebuffering = false)))
 	}
 
-	@Test fun playsSlowUntilTheCushionIsBuilt() {
-		val c = Cushion(6.0, 8.0)
-		assertEquals(Cushion.SLOW, c.speedFor(2_000_000, 1f))
-		assertEquals(Cushion.SLOW, c.speedFor(5_900_000, Cushion.SLOW)) // keeps building
-		assertEquals(1f, c.speedFor(6_000_000, Cushion.SLOW)) // full: normal speed
-		assertEquals("no flapping just under the target", 1f, c.speedFor(5_500_000, 1f))
-		assertEquals(Cushion.SLOW, c.speedFor(4_900_000, 1f)) // a second short: rebuild
-		c.onStall() // target 7 s
-		assertEquals(Cushion.SLOW, c.speedFor(6_500_000, Cushion.SLOW))
+	@Test fun fillingTheCushionNeverSlowsPlayback() {
+		// The desktop's rule (2026-10-17): a speed under 1.0 made speech drag, so the
+		// cushion fills from what the server hands over ahead of real time instead.
+		// Unit tests run with the app module as the working directory.
+		val dir = java.io.File("src/main/java/dev/serrebi/accessibleiptv")
+		val offenders = dir.listFiles { f -> f.extension == "kt" }!!.filter { file ->
+			val text = file.readText()
+			text.contains("setPlaybackSpeed") || text.contains("setPlaybackParameters")
+		}
+		assertTrue("playback speed is set in $offenders", offenders.isEmpty())
 	}
 
 	@Test fun twentyFiveSecondCushionKeepsTheHalfSecondStart() {
 		val c = Cushion(Prefs.DEFAULT_BUFFER.toDouble(), 30.0)
 		assertFalse(c.shouldStartPlayback(params(0.49, rebuffering = false)))
 		assertTrue(c.shouldStartPlayback(params(0.5, rebuffering = false)))
-		assertEquals(Cushion.SLOW, c.speedFor(24_900_000, Cushion.SLOW))
-		assertEquals(1f, c.speedFor(25_000_000, Cushion.SLOW))
 		c.onStall()
 		assertFalse(c.shouldStartPlayback(params(25.0)))
 		assertTrue(c.shouldStartPlayback(params(26.0)))
