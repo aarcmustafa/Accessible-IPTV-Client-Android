@@ -77,9 +77,19 @@ class LiveChannelTest {
 	}
 
 	@Test fun attachJoinsTheRunningChannelInsteadOfOpeningASecondSocket() {
+		// The provider sends headers, then waits for the reader before writing: a reader
+		// starts at the live edge, so bytes sent earlier would be behind it (this test
+		// used to wait 10 s for a reconnect's second copy of the same bytes).
+		val go = CountDownLatch(1)
 		val hold = CountDownLatch(1)
 		FakeServer().use { server ->
-			server.on("/live.ts") { ex -> ex.chunked(bytes(50_000)); hold.await(10, TimeUnit.SECONDS) }
+			server.on("/live.ts") { ex ->
+				ex.sendResponseHeaders(200, 0)  // chunked: Net.open returns here
+				go.await(10, TimeUnit.SECONDS)
+				ex.responseBody.write(bytes(50_000))
+				ex.responseBody.flush()
+				hold.await(10, TimeUnit.SECONDS)
+			}
 			val first = LiveChannels.attach("src:1") { Net.open("${server.url}/live.ts") }
 			assertNotNull("the first consumer opens the channel", first)
 			assertTrue("the socket was opened once", awaitRequests(server, "/live.ts", 1))
@@ -89,7 +99,9 @@ class LiveChannelTest {
 			}
 			assertSame("recording the watched channel shares its socket", first, second)
 			assertEquals("one provider connection for watching and recording", 1, server.requests.count { it == "/live.ts" })
-			assertArrayEquals(bytes(50_000), second!!.reader().readN(50_000))
+			val reader = second!!.reader()
+			go.countDown()
+			assertArrayEquals(bytes(50_000), reader.readN(50_000))
 			hold.countDown()
 			LiveChannels.leave(first!!)
 			LiveChannels.leave(second)
