@@ -73,6 +73,9 @@ data class Channel(
 
 	val hasCatchup get() =!attrs["catchup"].isNullOrBlank() || !attrs["catchup-source"].isNullOrBlank() || catchupDays > 0
 
+	/** Dispatcharr marks its XC playlist with this header attribute, and buffers server-side. */
+	val isDispatcharr get() = !attrs["catchup-timezone"].isNullOrBlank()
+
 	fun toJson(): JSONObject {
 		val o = JSONObject().put("s", sourceId).put("i", id).put("n", name).put("g", group).put("u", url).put("k", kind)
 		if (tvgId.isNotEmpty()) o.put("t", tvgId)

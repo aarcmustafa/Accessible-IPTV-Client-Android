@@ -240,7 +240,8 @@ class PlayerActivity : AppCompatActivity() {
 			DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES,
 		)
 		// Same cache as the desktop app: same seconds, same +1 s per stall, same maximum.
-		cushion = Cushion(app.prefs.bufferSeconds, app.prefs.maxBufferSeconds)
+		// A Dispatcharr restreamer keeps the saved buffer (see Cushion.onStall).
+		cushion = Cushion(app.prefs.bufferSeconds, app.prefs.maxBufferSeconds, dispatcharr = ch?.isDispatcharr == true)
 		// A live TS channel is read from its tap, so a recording of it shares this one socket;
 		// every other request (catch-up, HLS, a file) goes to the ordinary data source.
 		val tap = TapDataSource(tapKey(channelKey, plain)) { Net.open(plain, streamHeaders) }

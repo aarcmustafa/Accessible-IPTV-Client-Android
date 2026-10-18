@@ -89,7 +89,8 @@ cvs-health/android-view-accessibility-techniques.
   cushion only grows from what the server hands over ahead of real time. Settings buffer (default 25 s for every
   provider; saved defaults 6/10 read as 25, max 18 reads as 30) is the target; other explicit settings are kept and
   the maximum is at least the base. After a stall it waits for the full cushion. Cold IPTVCanada tunes can take ~12 s
-  server-side (provider TTFB).
+  server-side (provider TTFB). Dispatcharr channels (`Channel.isDispatcharr`, the header's
+  `catchup-timezone`) keep the saved buffer: a stall does not raise it (0.2.19).
 - Player: live channels reconnect like the desktop (`Reconnect`: 0.4, 2, 4, 8, 8, 8 s, reset after 2 min); catch-up and files do not.
   A reconnect starts with the quick-start buffer and never grows the cushion; ExoPlayer holds audio focus and stops on headphones unplug (0.2.16).
   A hidden player does not hold the socket (`onPause` stops and frees the stream; `onStart` re-prepares — live at the live edge, catch-up where it was);

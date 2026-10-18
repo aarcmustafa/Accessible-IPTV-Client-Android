@@ -121,6 +121,18 @@ class CoreTest {
 		assertTrue("playback speed is set in $offenders", offenders.isEmpty())
 	}
 
+	@Test fun dispatcharrStreamKeepsTheSavedBufferThroughAStall() {
+		// Dispatcharr restreams from its own buffer: its channels keep the saved setting.
+		val c = Cushion(6.0, 30.0, dispatcharr = true)
+		repeat(3) { c.onStall() }
+		assertEquals(6_000_000L, c.targetUs)
+		assertTrue(c.shouldStartPlayback(params(6.0)))
+		// The marker rides the playlist header, like the desktop's.
+		val plain = Channel("s", "1", "A", "G", "http://h/1")
+		assertFalse(plain.isDispatcharr)
+		assertTrue(plain.copy(attrs = mapOf("catchup-timezone" to "UTC")).isDispatcharr)
+	}
+
 	@Test fun twentyFiveSecondCushionKeepsTheHalfSecondStart() {
 		val c = Cushion(Prefs.DEFAULT_BUFFER.toDouble(), 30.0)
 		assertFalse(c.shouldStartPlayback(params(0.49, rebuffering = false)))

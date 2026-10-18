@@ -18,11 +18,14 @@ import androidx.media3.exoplayer.upstream.Allocator
  * only with the full cushion in hand, and each stall adds one second, up to [maxSeconds]
  * (desktop: base_buffer_seconds + 1 per stall, capped at max_buffer_seconds).
  *
+ * A Dispatcharr stream ([Channel.isDispatcharr]) keeps the saved buffer instead: it restreams
+ * from its own server-side buffer, so a bigger client cache only adds delay.
+ *
  * Every PlayerId overload is forwarded by hand: Kotlin's `by` delegation skips Java default
  * methods, and LoadControl's defaults throw "not implemented" (crashed the player on open).
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = QUICK_START_SECONDS) : LoadControl {
+class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = QUICK_START_SECONDS, private val dispatcharr: Boolean = false) : LoadControl {
 	// Keep loading until the maximum is buffered, like VLC filling its cache.
 	private val inner = DefaultLoadControl.Builder()
 		.setBufferDurationsMs(msOf(maxSeconds), msOf(maxSeconds) + 2_000, msOf(startSeconds), msOf(startSeconds))
@@ -39,6 +42,7 @@ class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = Q
 
 	/** A stall happened: raise the cushion by one second, as the desktop does. */
 	fun onStall() {
+		if (dispatcharr) return  // Dispatcharr's own buffer is the cushion
 		targetUs = minOf(maxUs, targetUs + 1_000_000)
 	}
 
