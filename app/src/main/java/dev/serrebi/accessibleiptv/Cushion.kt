@@ -26,29 +26,49 @@ import androidx.media3.exoplayer.upstream.Allocator
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = QUICK_START_SECONDS, private val dispatcharr: Boolean = false) : LoadControl {
-	// Keep loading until the maximum is buffered, like VLC filling its cache.
+	// The inner control owns the allocator and the back buffer; how much to load and
+	// when to start are decided here, against the current cushion target.
 	private val inner = DefaultLoadControl.Builder()
 		.setBufferDurationsMs(msOf(maxSeconds), msOf(maxSeconds) + 2_000, msOf(startSeconds), msOf(startSeconds))
 		// A timestamp reset can fill the byte target with media that cannot yet play.
 		.setPrioritizeTimeOverSizeThresholds(true)
 		.build()
 
+	private val startUs = (startSeconds * 1_000_000).toLong()
 	private val maxUs = (maxSeconds.coerceAtLeast(startSeconds) * 1_000_000).toLong()
 
-	@Volatile var targetUs = (startSeconds * 1_000_000).toLong()
+	@Volatile var targetUs = startUs
 		private set
 
 	private val quickUs = (minOf(quickSeconds, startSeconds) * 1_000_000).toLong()
 
-	/** A stall happened: raise the cushion by one second, as the desktop does. */
+	/**
+	 * This session was reopened after a stall, so its starts wait for the whole cushion:
+	 * the desktop creates the reopened media with the full caching value, where a fresh
+	 * prepare used to slip back in at the quick-start gate and flap.
+	 */
+	@Volatile var reopened = false
+		private set
+
+	/** A stall is being recovered from: raise the cushion by one second, as the desktop does. */
 	fun onStall() {
+		reopened = true
 		if (dispatcharr) return  // Dispatcharr's own buffer is the cushion
 		targetUs = minOf(maxUs, targetUs + 1_000_000)
 	}
 
-	// First start (and a reconnect, which prepares afresh): quick. Back from a stall: the whole cushion.
+	/** A reopen that earns no growth (a dropped stream rejoining the live edge). */
+	fun onReopen() { reopened = true }
+
+	/** A fresh start (a new channel, or the user pressing play again): quick start, saved buffer. */
+	fun onFreshStart() {
+		targetUs = startUs
+		reopened = false
+	}
+
+	// First start: quick. A rebuffer, and any start after a recovery reopen: the whole cushion.
 	override fun shouldStartPlayback(parameters: LoadControl.Parameters): Boolean =
-		parameters.bufferedDurationUs >= if (parameters.rebuffering) targetUs else quickUs
+		parameters.bufferedDurationUs >= if (parameters.rebuffering || reopened) targetUs else quickUs
 
 	override fun onPrepared(playerId: PlayerId) = inner.onPrepared(playerId)
 	override fun onTracksSelected(parameters: LoadControl.Parameters, trackGroups: TrackGroupArray, trackSelections: Array<out ExoTrackSelection?>) =
@@ -58,7 +78,12 @@ class Cushion(startSeconds: Double, maxSeconds: Double, quickSeconds: Double = Q
 	override fun getAllocator(playerId: PlayerId): Allocator = inner.getAllocator(playerId)
 	override fun getBackBufferDurationUs(playerId: PlayerId): Long = inner.getBackBufferDurationUs(playerId)
 	override fun retainBackBufferFromKeyframe(playerId: PlayerId): Boolean = inner.retainBackBufferFromKeyframe(playerId)
-	override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean = inner.shouldContinueLoading(parameters)
+
+	// Loading runs to the current cushion target (plus the inner control's headroom),
+	// not always to the maximum: the desktop's steady cushion is its current target.
+	override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean =
+		parameters.bufferedDurationUs < targetUs + 2_000_000
+
 	override fun shouldContinuePreloading(playerId: PlayerId, timeline: Timeline, mediaPeriodId: MediaSource.MediaPeriodId, bufferedDurationUs: Long): Boolean =
 		inner.shouldContinuePreloading(playerId, timeline, mediaPeriodId, bufferedDurationUs)
 
@@ -95,5 +120,103 @@ class Reconnect(private val clock: () -> Long) {
 		const val MAX = 6
 		const val RESET_MS = 120_000L
 		fun delayMs(attempt: Int): Long = if (attempt <= 1) 400L else minOf(1000L shl (attempt - 1), 8000L)
+	}
+}
+
+/**
+ * The desktop player's playback-health bookkeeping (internal_player.py), fed once a
+ * second by the player screen: buffering that follows playback and lasts 10 s is a
+ * stall, four buffering events of 1.25 s or more inside a minute are choppy playback,
+ * media progress frozen for 10 s (after a 12 s startup grace) is a stall, a reopened
+ * stream with no media after 25 s restarts, and a channel that has not played at all
+ * 30 s after it was chosen is given up on. Pure time arithmetic against an injected
+ * clock, so the rules are testable without a player.
+ */
+class StallTracker(private val clock: () -> Long) {
+	enum class Verdict { NONE, RESTART, RESTART_GROWN, GIVE_UP }
+
+	private var openedAt = clock()
+	private var preparedAt = openedAt
+	private var played = false
+	private var bufferingSince: Long? = null
+	private val events = ArrayDeque<Long>()
+	private var lastAdjustAt = Long.MIN_VALUE / 2
+	private var gaveUp = false
+
+	/** A fresh request (a new channel, or the user pressing play again): every clock restarts. */
+	fun reset() {
+		openedAt = clock()
+		preparedAt = openedAt
+		played = false
+		bufferingSince = null
+		events.clear()
+		lastAdjustAt = Long.MIN_VALUE / 2
+		gaveUp = false
+	}
+
+	/** A (re)open of the same stream: the no-media clock restarts, the channel's does not. */
+	fun onPrepared() {
+		preparedAt = clock()
+		bufferingSince = null
+	}
+
+	/** Playback reached the screen: the first-play deadline is met for good. */
+	fun onPlaying() {
+		played = true
+		closeEpisode()
+	}
+
+	/**
+	 * One health tick. [frozenMs] is how long media progress has stood still while the
+	 * player claims to be playing (0 while buffering or paused).
+	 */
+	fun tick(buffering: Boolean, frozenMs: Long): Verdict {
+		val t = clock()
+		if (buffering) {
+			if (bufferingSince == null) bufferingSince = t
+		} else {
+			closeEpisode()
+		}
+		if (gaveUp) return Verdict.NONE
+		if (!played) {
+			if (t - openedAt >= FIRST_PLAY_DEADLINE_MS) { gaveUp = true; return Verdict.GIVE_UP }
+			if (t - preparedAt >= NO_MEDIA_MS) return Verdict.RESTART
+			return Verdict.NONE
+		}
+		val since = bufferingSince
+		if (buffering && since != null && t - since >= PROLONGED_MS) {
+			bufferingSince = t
+			lastAdjustAt = t
+			return Verdict.RESTART_GROWN
+		}
+		if (frozenMs >= FROZEN_MS && t - openedAt >= STARTUP_GRACE_MS && t - lastAdjustAt >= COOLDOWN_MS) {
+			lastAdjustAt = t
+			return Verdict.RESTART_GROWN
+		}
+		while (events.isNotEmpty() && t - events.first() >= CHOPPY_WINDOW_MS) events.removeFirst()
+		if (events.size >= CHOPPY_COUNT && t - lastAdjustAt >= COOLDOWN_MS) {
+			lastAdjustAt = t
+			events.clear()
+			return Verdict.RESTART_GROWN
+		}
+		return Verdict.NONE
+	}
+
+	private fun closeEpisode() {
+		val since = bufferingSince ?: return
+		bufferingSince = null
+		if (clock() - since >= EVENT_MIN_MS) events.addLast(clock())
+	}
+
+	companion object {
+		const val PROLONGED_MS = 10_000L
+		const val EVENT_MIN_MS = 1_250L
+		const val CHOPPY_WINDOW_MS = 60_000L
+		const val CHOPPY_COUNT = 4
+		const val COOLDOWN_MS = 20_000L
+		const val NO_MEDIA_MS = 25_000L
+		const val FIRST_PLAY_DEADLINE_MS = 30_000L
+		const val FROZEN_MS = 10_000L
+		const val STARTUP_GRACE_MS = 12_000L
 	}
 }

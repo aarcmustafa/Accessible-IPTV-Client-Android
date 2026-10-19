@@ -208,4 +208,5 @@
 	<string name="settings_imported">Einstellungen geladen.</string>
 	<string name="settings_failed">Fehler: %1$s</string>
 	<string name="language">Sprache</string>
+	<string name="stream_lost">Stream verloren</string>
 </resources>

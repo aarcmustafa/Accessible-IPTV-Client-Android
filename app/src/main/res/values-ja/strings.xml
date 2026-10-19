@@ -201,4 +201,5 @@
 	<string name="settings_imported">設定を読み込みました。</string>
 	<string name="settings_failed">失敗: %1$s</string>
 	<string name="language">言語</string>
+	<string name="stream_lost">ストリームが失われました</string>
 </resources>

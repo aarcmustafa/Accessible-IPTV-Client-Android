@@ -144,6 +144,13 @@ class PlayerActivity : AppCompatActivity() {
 	private val retry = android.os.Handler(android.os.Looper.getMainLooper())
 	private var retryJob: Runnable? = null
 	private var timestampResetAt: Long? = null
+	/** The desktop's playback-health rules, ticked once a second by [watchdog]. */
+	private val health = StallTracker(android.os.SystemClock::elapsedRealtime)
+	/** Progress sampling for the health tick: the last position seen, and since when it stood still while the player claimed to be playing. */
+	private var lastPosition = -1L
+	private var frozenSince: Long? = null
+	/** A recovery gave up on this channel: the budget was spent, or it never played at all. */
+	private var gaveUp = false
 
 	/**
 	 * Watches playback once a second: the shared live socket's reconnect, and a live stream
@@ -167,9 +174,39 @@ class PlayerActivity : AppCompatActivity() {
 				resetAt != null && android.os.SystemClock.elapsedRealtime() - resetAt >= 5_000) {
 				android.util.Log.w("AiptvPlayer", "timestamp reset left live playback stuck; recovering")
 				timestampResetAt = null
-				tryReconnect()
+				tryReconnect(grow = true)
 			}
 			status.postDelayed(this, 1_000)
+		}
+	}
+
+	/** Ticks the desktop's playback-health rules once a second, for every kind of playback. */
+	private val watchdog: Runnable = object : Runnable {
+		override fun run() {
+			tickHealth()
+			status.postDelayed(this, 1_000)
+		}
+	}
+
+	private fun tickHealth() {
+		if (pausedByStop || gaveUp || retryJob != null) return
+		if (player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return
+		// Progress: the position advancing is the desktop's A/V progress counter.
+		val now = android.os.SystemClock.elapsedRealtime()
+		val position = exo.currentPosition
+		var frozenMs = 0L
+		if (exo.playbackState == M3Player.STATE_READY && player.playWhenReady && !exo.isPlaying) {
+			if (position != lastPosition) { lastPosition = position; frozenSince = null }
+			else {
+				val since = frozenSince ?: now.also { frozenSince = it }
+				frozenMs = now - since
+			}
+		} else { lastPosition = position; frozenSince = null }
+		when (health.tick(exo.playbackState == M3Player.STATE_BUFFERING, frozenMs)) {
+			StallTracker.Verdict.RESTART -> recover(grow = false)
+			StallTracker.Verdict.RESTART_GROWN -> recover(grow = true)
+			StallTracker.Verdict.GIVE_UP -> giveUp()
+			StallTracker.Verdict.NONE -> Unit
 		}
 	}
 
@@ -251,6 +288,13 @@ class PlayerActivity : AppCompatActivity() {
 		exo = ExoPlayer.Builder(this)
 			.setMediaSourceFactory(DefaultMediaSourceFactory(sources, extractors))
 			.setLoadControl(cushion)
+			// Live playback never changes rate to chase the live edge: the desktop holds
+			// the edge by dropping late frames instead, where Media3's default control
+			// speeds playback up to catch up.
+			.setLivePlaybackSpeedControl(
+				androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl.Builder()
+					.setFallbackMinPlaybackSpeed(1f).setFallbackMaxPlaybackSpeed(1f).build(),
+			)
 			.build()
 		// Pause for calls, alarms and other apps instead of talking over them, and stop when
 		// the headphones are pulled out instead of switching to the phone's speaker.
@@ -280,6 +324,7 @@ class PlayerActivity : AppCompatActivity() {
 		player.playWhenReady = true
 		if (BuildConfig.DEBUG) heartbeat.run()
 		if (live) status.post(pace)
+		status.post(watchdog)
 		say(getString(R.string.connecting), 2)
 		// Handing a stream to another app cannot be limited to one connection; the old setting
 		// is ignored, and said out loud once for anyone who had it on.
@@ -292,10 +337,13 @@ class PlayerActivity : AppCompatActivity() {
 			if (player.isPlaying) player.pause()
 			else {
 				if (player.playbackState == M3Player.STATE_IDLE || player.playbackState == M3Player.STATE_ENDED) {
-					// Retry after a failure: a live stream starts again at the live edge.
+					// Retry after a failure: a fresh start — quick start, saved buffer, full budget.
 					retry.removeCallbacksAndMessages(null)
 					retryJob = null
 					reconnect.reset()
+					health.reset()
+					cushion.onFreshStart()
+					gaveUp = false
 					if (live) prepareLive() else player.prepare()
 				}
 				player.play()
@@ -355,19 +403,19 @@ class PlayerActivity : AppCompatActivity() {
 		override fun onPlaybackStateChanged(state: Int) {
 			// One line per change: lets stalls be measured from logcat (tag AiptvPlayer).
 			android.util.Log.i("AiptvPlayer", "state=$state cushionMs=${cushion.targetUs / 1000} bufferedMs=${exo.totalBufferedDuration}")
-			if (state == M3Player.STATE_READY) hasPlayed = true
+			if (state == M3Player.STATE_READY) { hasPlayed = true; health.onPlaying() }
 			// A live stream that ends was dropped by the server: reconnect, as the desktop does.
 			if (state == M3Player.STATE_ENDED && tryReconnect()) return
 			if (state == M3Player.STATE_BUFFERING) {
-				// Buffering after playback began is a stall: grow the cushion like the desktop.
-				if (hasPlayed) cushion.onStall()
+				// Buffering is announced; whether it is a stall is the health tick's call —
+				// the cushion grows only when a restart actually happens, like the desktop.
 				say(getString(R.string.buffering), 3)
 			}
 			if (state == M3Player.STATE_ENDED) say(getString(R.string.stream_ended), 1)
 		}
 
 		override fun onPlayerError(error: PlaybackException) {
-			if (tryReconnect()) return
+			if (recover(grow = true)) return
 			say(getString(R.string.play_failed, error.errorCodeName), 1)
 			pause.setText(R.string.retry)
 		}
@@ -481,22 +529,56 @@ class PlayerActivity : AppCompatActivity() {
 			}.show()
 	}
 
-	/** Schedules the next reconnect of a live stream; false when this stream does not get one or the budget is spent. */
-	private fun tryReconnect(): Boolean {
-		if (!live || pausedByStop || player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return false
+	/** Schedules the next reconnect of a live stream; false when this stream does not get one. */
+	private fun tryReconnect(grow: Boolean = false): Boolean = if (live) recover(grow) else false
+
+	/**
+	 * Schedules a reopen of the current stream inside the reconnect budget, for every
+	 * kind of playback; false when this stream gets none (the screen is left, or the TV
+	 * is playing). [grow] is set when the stall earns a bigger cushion, as a desktop
+	 * stall does; when the budget is spent the channel is declared lost instead of
+	 * retrying forever.
+	 */
+	private fun recover(grow: Boolean): Boolean {
+		if (pausedByStop || player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return false
 		if (retryJob != null) return true
-		val delay = reconnect.next() ?: return false
+		val delay = reconnect.next() ?: run { giveUp(); return true }
+		if (grow) cushion.onStall() else cushion.onReopen()
 		say(getString(R.string.reconnecting), 2)
 		val job = Runnable {
 			retryJob = null
 			if (isFinishing || isDestroyed || pausedByStop) return@Runnable
-			// Behind the live window after a drop: start again at the live edge.
-			prepareLive()
+			if (live) {
+				// Behind the live window after a drop: start again at the live edge.
+				prepareLive()
+			} else {
+				// A film or catch-up reopens where it stopped.
+				val item = player.currentMediaItem ?: return@Runnable
+				val at = exo.currentPosition
+				hasPlayed = false
+				health.onPrepared()
+				player.stop()
+				player.setMediaItem(item, at)
+				player.prepare()
+			}
 			player.play()
 		}
 		retryJob = job
 		retry.postDelayed(job, delay)
 		return true
+	}
+
+	/**
+	 * The budget is spent, or the channel never played at all: the desktop declares it
+	 * lost, rather than leaving a silent spinner up.
+	 */
+	private fun giveUp() {
+		if (gaveUp) return
+		gaveUp = true
+		cancelRetry()
+		player.stop()
+		say(getString(R.string.stream_lost), 1)
+		pause.setText(R.string.retry)
 	}
 
 	/**
@@ -523,9 +605,10 @@ class PlayerActivity : AppCompatActivity() {
 		val item = player.currentMediaItem ?: return
 		timestampResetAt = null
 		autoTrackDone = false
-		// A reconnect is not a stall: its own buffering must not grow the cushion, and it starts
-		// with the quick-start buffer instead of the full one (hasPlayed arms the stall count).
+		// A recovery reopen keeps the cushion it earned (armed in Cushion by recover):
+		// the reopen fills the full saved buffer before sound returns, like the desktop.
 		hasPlayed = false
+		health.onPrepared()
 		// A fresh media period discards stale sample queues and timestamp adjusters after a source reset.
 		player.stop()
 		player.setMediaItem(item, true)
@@ -651,6 +734,7 @@ class PlayerActivity : AppCompatActivity() {
 		timestampResetAt = null
 		cancelRetry()
 		status.removeCallbacks(pace)
+		status.removeCallbacks(watchdog)
 		player.stop() // closes the data source, which leaves the tap
 		releaseStream()
 	}
@@ -667,6 +751,11 @@ class PlayerActivity : AppCompatActivity() {
 		if (!pausedByStop || player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return
 		pausedByStop = false
 		if (!reclaimStream()) return say(getString(R.string.stream_busy), 1)
+		// The player was stopped while away: this open is a fresh start, not a recovery.
+		cushion.onFreshStart()
+		health.reset()
+		gaveUp = false
+		status.post(watchdog)
 		// Back in the app: live TV picks up at the live edge, not minutes behind where it stopped.
 		if (live) {
 			prepareLive()
@@ -682,6 +771,7 @@ class PlayerActivity : AppCompatActivity() {
 		retry.removeCallbacksAndMessages(null)
 		findViewById<View>(R.id.nowPlaying).removeCallbacks(programmeTick)
 		status.removeCallbacks(pace)
+		status.removeCallbacks(watchdog)
 		if (this::player.isInitialized) {
 			releaseStream()
 			player.release() // releases the wrapped local player too

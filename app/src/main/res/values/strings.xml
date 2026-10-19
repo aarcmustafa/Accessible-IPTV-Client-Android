@@ -233,4 +233,5 @@
 	<string name="settings_failed">Failed: %1$s</string>
 
 	<string name="language">Language</string>
+	<string name="stream_lost">Stream lost</string>
 </resources>

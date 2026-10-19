@@ -208,4 +208,5 @@
 	<string name="settings_imported">Ayarlar yüklendi.</string>
 	<string name="settings_failed">Başarısız: %1$s</string>
 	<string name="language">Dil</string>
+	<string name="stream_lost">Yayın kaybedildi</string>
 </resources>

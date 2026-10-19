@@ -208,4 +208,5 @@
 	<string name="settings_imported">Beállítások betöltve.</string>
 	<string name="settings_failed">Hiba: %1$s</string>
 	<string name="language">Nyelv</string>
+	<string name="stream_lost">Az adás megszakadt</string>
 </resources>

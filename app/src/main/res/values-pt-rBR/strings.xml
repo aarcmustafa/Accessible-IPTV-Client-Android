@@ -215,4 +215,5 @@
 	<string name="settings_imported">Configurações carregadas.</string>
 	<string name="settings_failed">Falha: %1$s</string>
 	<string name="language">Idioma</string>
+	<string name="stream_lost">Transmissão perdida</string>
 </resources>
