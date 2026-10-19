@@ -125,7 +125,7 @@ class Reconnect(private val clock: () -> Long) {
 
 /**
  * The desktop player's playback-health bookkeeping (internal_player.py), fed once a
- * second by the player screen: buffering that follows playback and lasts 10 s is a
+ * second by the player screen: buffering with no growth for 10 s after playback is a
  * stall, four buffering events of 1.25 s or more inside a minute are choppy playback,
  * media progress frozen for 10 s (after a 12 s startup grace) is a stall, a reopened
  * stream with no media after 25 s restarts, and a channel that has not played at all
@@ -133,12 +133,14 @@ class Reconnect(private val clock: () -> Long) {
  * clock, so the rules are testable without a player.
  */
 class StallTracker(private val clock: () -> Long) {
-	enum class Verdict { NONE, RESTART, RESTART_GROWN, GIVE_UP }
+	enum class Verdict { NONE, GROW, RESTART, RESTART_GROWN, GIVE_UP }
 
 	private var openedAt = clock()
 	private var preparedAt = openedAt
 	private var played = false
 	private var bufferingSince: Long? = null
+	private var lastBufferedMs = 0L
+	private var bufferProgressAt = openedAt
 	private val events = ArrayDeque<Long>()
 	private var lastAdjustAt = Long.MIN_VALUE / 2
 	private var gaveUp = false
@@ -149,6 +151,8 @@ class StallTracker(private val clock: () -> Long) {
 		preparedAt = openedAt
 		played = false
 		bufferingSince = null
+		lastBufferedMs = 0
+		bufferProgressAt = openedAt
 		events.clear()
 		lastAdjustAt = Long.MIN_VALUE / 2
 		gaveUp = false
@@ -158,6 +162,8 @@ class StallTracker(private val clock: () -> Long) {
 	fun onPrepared() {
 		preparedAt = clock()
 		bufferingSince = null
+		lastBufferedMs = 0
+		bufferProgressAt = preparedAt
 	}
 
 	/** Playback reached the screen: the first-play deadline is met for good. */
@@ -170,12 +176,19 @@ class StallTracker(private val clock: () -> Long) {
 	 * One health tick. [frozenMs] is how long media progress has stood still while the
 	 * player claims to be playing (0 while buffering or paused).
 	 */
-	fun tick(buffering: Boolean, frozenMs: Long): Verdict {
+	fun tick(buffering: Boolean, frozenMs: Long, bufferedMs: Long = 0): Verdict {
 		val t = clock()
 		if (buffering) {
 			if (bufferingSince == null) bufferingSince = t
+			// Filling a saved cushion is progress, not a reason to discard it and reconnect.
+			if (bufferedMs > lastBufferedMs) {
+				bufferProgressAt = t
+				preparedAt = t
+			}
+			lastBufferedMs = bufferedMs
 		} else {
 			closeEpisode()
+			lastBufferedMs = 0
 		}
 		if (gaveUp) return Verdict.NONE
 		if (!played) {
@@ -184,7 +197,7 @@ class StallTracker(private val clock: () -> Long) {
 			return Verdict.NONE
 		}
 		val since = bufferingSince
-		if (buffering && since != null && t - since >= PROLONGED_MS) {
+		if (buffering && since != null && t - maxOf(since, bufferProgressAt) >= PROLONGED_MS) {
 			bufferingSince = t
 			lastAdjustAt = t
 			return Verdict.RESTART_GROWN
@@ -197,7 +210,7 @@ class StallTracker(private val clock: () -> Long) {
 		if (events.size >= CHOPPY_COUNT && t - lastAdjustAt >= COOLDOWN_MS) {
 			lastAdjustAt = t
 			events.clear()
-			return Verdict.RESTART_GROWN
+			return Verdict.GROW
 		}
 		return Verdict.NONE
 	}

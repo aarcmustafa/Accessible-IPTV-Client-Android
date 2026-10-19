@@ -107,6 +107,9 @@ class ScreenTest {
 		playlist("#EXTM3U\n#EXTINF:-1 group-title=\"News\",BBC One\nhttp://h/1.ts\n#EXTINF:-1 group-title=\"Sport\",Arena\nhttp://h/2.ts")
 		val a = Robolectric.buildActivity(MainActivity::class.java).setup().get()
 		val rv = a.findViewById<RecyclerView>(R.id.channels)
+		waitUntil { rv.adapter!!.itemCount == 2 }
+		rv.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY))
+		rv.layout(0, 0, 1080, 1920)
 		waitUntil { rv.adapter!!.itemCount == 2 && rv.findViewHolderForAdapterPosition(0) != null }
 		assertEquals("BBC One", rv.findViewHolderForAdapterPosition(0)!!.itemView.contentDescription.toString())
 		waitUntil { a.findViewById<TextView>(R.id.status).text.contains("2") }

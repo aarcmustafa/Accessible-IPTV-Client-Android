@@ -104,6 +104,28 @@ class SingleConnectionTest {
 		}
 	}
 
+	@Test fun decoderRecoveryKeepsTheExistingProviderConnection() {
+		FakeServer().use { server ->
+			channel(server)
+			live(server, "/live.ts")
+			val key = app.channels[0].key
+			val controller = player(key, server)
+			try {
+				assertTrue(awaitRequest(server, "/live.ts"))
+				val original = LiveChannels.current(key)!!
+				PlayerActivity::class.java.getDeclaredMethod("prepareLive").apply { isAccessible = true }.invoke(controller.get())
+				val end = System.currentTimeMillis() + 500
+				while (System.currentTimeMillis() < end) {
+					shadowOf(Looper.getMainLooper()).idle()
+					Thread.sleep(10)
+				}
+				assertSame("a decoder reset must not disconnect the provider", original, LiveChannels.current(key))
+				assertEquals(1, server.requests.count { it == "/live.ts" })
+			} finally { controller.pause().stop().destroy() }
+			assertNull("leaving the screen still releases the retained connection", Streams.current())
+		}
+	}
+
 	@Test fun recordingAnUnwatchedChannelTakesTheOneConnection() {
 		FakeServer().use { server ->
 			channel(server)

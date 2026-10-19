@@ -34,8 +34,6 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -138,12 +136,12 @@ class PlayerActivity : AppCompatActivity() {
 	private var saidRetrying = false
 	/** A live channel (not catch-up, a file or VOD): drops are reconnected like the desktop. */
 	private var live = false
+	private var restoringChannel = false
 	/** Catch-up or a file: the Record button does not apply. */
 	private var catchupPlayback = false
 	private val reconnect = Reconnect(android.os.SystemClock::elapsedRealtime)
 	private val retry = android.os.Handler(android.os.Looper.getMainLooper())
 	private var retryJob: Runnable? = null
-	private var timestampResetAt: Long? = null
 	/** The desktop's playback-health rules, ticked once a second by [watchdog]. */
 	private val health = StallTracker(android.os.SystemClock::elapsedRealtime)
 	/** Progress sampling for the health tick: the last position seen, and since when it stood still while the player claimed to be playing. */
@@ -153,28 +151,16 @@ class PlayerActivity : AppCompatActivity() {
 	private var gaveUp = false
 
 	/**
-	 * Watches playback once a second: the shared live socket's reconnect, and a live stream
-	 * left stuck by a timestamp reset. Playback speed is never touched - the cushion fills
-	 * from what the server hands over ahead of real time (Cushion).
+	 * Announces the shared live socket's reconnect once a second. The watchdog handles
+	 * stalled playback, so a timestamp warning cannot start a competing recovery loop.
 	 */
 	private val pace: Runnable = object : Runnable {
 		override fun run() {
-			val local = player.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE
 			// The shared live socket reconnects for the whole channel: say so while it does.
 			val retrying = tapSource?.joined?.reconnecting == true
 			if (retrying != saidRetrying) {
 				saidRetrying = retrying
 				if (retrying) say(getString(R.string.reconnecting), 2)
-			}
-			// A sink warning alone is recoverable: the mark goes once playback runs again.
-			// Buffered data is no proof — a wedged stream can hold minutes of unplayable queue.
-			if (exo.isPlaying) timestampResetAt = null
-			val resetAt = timestampResetAt
-			if (local && !pausedByStop && player.playWhenReady && exo.playbackState == M3Player.STATE_BUFFERING &&
-				resetAt != null && android.os.SystemClock.elapsedRealtime() - resetAt >= 5_000) {
-				android.util.Log.w("AiptvPlayer", "timestamp reset left live playback stuck; recovering")
-				timestampResetAt = null
-				tryReconnect(grow = true)
 			}
 			status.postDelayed(this, 1_000)
 		}
@@ -189,22 +175,23 @@ class PlayerActivity : AppCompatActivity() {
 	}
 
 	private fun tickHealth() {
-		if (pausedByStop || gaveUp || retryJob != null) return
+		if (restoringChannel || pausedByStop || gaveUp || retryJob != null) return
 		if (player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return
 		// Progress: the position advancing is the desktop's A/V progress counter.
 		val now = android.os.SystemClock.elapsedRealtime()
 		val position = exo.currentPosition
 		var frozenMs = 0L
-		if (exo.playbackState == M3Player.STATE_READY && player.playWhenReady && !exo.isPlaying) {
+		if (exo.playbackState == M3Player.STATE_READY && player.playWhenReady) {
 			if (position != lastPosition) { lastPosition = position; frozenSince = null }
 			else {
 				val since = frozenSince ?: now.also { frozenSince = it }
 				frozenMs = now - since
 			}
 		} else { lastPosition = position; frozenSince = null }
-		when (health.tick(exo.playbackState == M3Player.STATE_BUFFERING, frozenMs)) {
-			StallTracker.Verdict.RESTART -> recover(grow = false)
-			StallTracker.Verdict.RESTART_GROWN -> recover(grow = true)
+		when (health.tick(exo.playbackState == M3Player.STATE_BUFFERING, frozenMs, exo.totalBufferedDuration)) {
+			StallTracker.Verdict.GROW -> cushion.onStall()
+			StallTracker.Verdict.RESTART -> if (tapSource?.joined?.reconnecting != true) recover(grow = false)
+			StallTracker.Verdict.RESTART_GROWN -> if (tapSource?.joined?.reconnecting != true) recover(grow = true)
 			StallTracker.Verdict.GIVE_UP -> giveUp()
 			StallTracker.Verdict.NONE -> Unit
 		}
@@ -237,6 +224,7 @@ class PlayerActivity : AppCompatActivity() {
 		pause = findViewById(R.id.btnPause)
 
 		val ch = app.channel(channelKey)
+		restoringChannel = ch == null && channelKey.isNotEmpty()
 		live = !catchup && ch?.isLive == true
 		channelName = name
 		subtitles = findViewById(R.id.subtitles)
@@ -300,15 +288,6 @@ class PlayerActivity : AppCompatActivity() {
 		// the headphones are pulled out instead of switching to the phone's speaker.
 		exo.setAudioAttributes(androidx.media3.common.AudioAttributes.DEFAULT, true)
 		exo.setHandleAudioBecomingNoisy(true)
-		exo.addAnalyticsListener(object : AnalyticsListener {
-			override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
-				if (audioSinkError is AudioSink.UnexpectedDiscontinuityException &&
-					audioSinkError.expectedPresentationTimeUs - audioSinkError.actualPresentationTimeUs >= 5_000_000 &&
-					timestampResetAt == null) {
-					timestampResetAt = android.os.SystemClock.elapsedRealtime()
-				}
-			}
-		})
 		// Devices without Google Play services (many TVs) have no Cast framework: play locally only.
 		castContext = if (localFile) null else runCatching { CastContext.getSharedInstance(this) }.getOrNull()
 		player = castContext?.let { runCatching { CastPlayer.Builder(this).setLocalPlayer(exo).build() }.getOrNull() } ?: exo
@@ -320,7 +299,7 @@ class PlayerActivity : AppCompatActivity() {
 		val item = MediaItem.Builder().setUri(plain).setMimeType(mimeOf(plain)).build()
 		player.setMediaItem(item)
 		player.addListener(listener)
-		player.prepare()
+		if (!restoringChannel) player.prepare()
 		player.playWhenReady = true
 		if (BuildConfig.DEBUG) heartbeat.run()
 		if (live) status.post(pace)
@@ -334,6 +313,7 @@ class PlayerActivity : AppCompatActivity() {
 		}
 
 		pause.setOnClickListener {
+			if (restoringChannel) return@setOnClickListener
 			if (player.isPlaying) player.pause()
 			else {
 				if (player.playbackState == M3Player.STATE_IDLE || player.playbackState == M3Player.STATE_ENDED) {
@@ -378,17 +358,22 @@ class PlayerActivity : AppCompatActivity() {
 		findViewById<Button>(R.id.btnClose).setOnClickListener { finish() }
 		// After layout: inside the scrolling button bar an early request is dropped and nothing has focus.
 		pause.post { pause.requestFocus() }
-		if (ch == null && channelKey.isNotEmpty()) lifecycleScope.launch {
+		if (restoringChannel) lifecycleScope.launch {
 			// Android can restore this activity before the main screen reloads the channel cache.
 			val restored = app.findChannel(channelKey, App.LIVE)
-			val wasLive = live
 			live = !catchup && restored?.isLive == true
-			// The item was prepared before the channel was known: a live TS stream takes its tap now.
-			if (live && !wasLive && !localFile && !hls) {
+			restoringChannel = false
+			// Resolve routing before opening a socket; replacing a direct request would tune twice.
+			if (live && !localFile && !hls) {
 				streamId?.let { Streams.release(it) }
 				streamId = null
-				prepareLive()
 			}
+			if (pausedByStop) return@launch
+			if (!reclaimStream()) return@launch say(getString(R.string.stream_busy), 1)
+			health.reset()
+			status.removeCallbacks(watchdog)
+			status.post(watchdog)
+			player.prepare()
 			if (live) status.post(pace)
 			showProgramme(announce = false)
 		}
@@ -577,6 +562,7 @@ class PlayerActivity : AppCompatActivity() {
 		gaveUp = true
 		cancelRetry()
 		player.stop()
+		tapSource?.release()
 		say(getString(R.string.stream_lost), 1)
 		pause.setText(R.string.retry)
 	}
@@ -598,18 +584,18 @@ class PlayerActivity : AppCompatActivity() {
 	private fun releaseStream() {
 		streamId?.let { Streams.release(it) }
 		streamId = null
-		tapSource?.close()
+		tapSource?.release()
 	}
 
 	private fun prepareLive() {
 		val item = player.currentMediaItem ?: return
-		timestampResetAt = null
 		autoTrackDone = false
 		// A recovery reopen keeps the cushion it earned (armed in Cushion by recover):
 		// the reopen fills the full saved buffer before sound returns, like the desktop.
 		hasPlayed = false
 		health.onPrepared()
 		// A fresh media period discards stale sample queues and timestamp adjusters after a source reset.
+		tapSource?.retainForRecovery()
 		player.stop()
 		player.setMediaItem(item, true)
 		player.prepare()
@@ -731,7 +717,6 @@ class PlayerActivity : AppCompatActivity() {
 		// Catch-up and files resume where they were; a live channel starts at the live edge again.
 		if (!live && exo.playbackState != M3Player.STATE_IDLE) resumeAt = exo.currentPosition
 		pausedByStop = true
-		timestampResetAt = null
 		cancelRetry()
 		status.removeCallbacks(pace)
 		status.removeCallbacks(watchdog)
@@ -750,6 +735,7 @@ class PlayerActivity : AppCompatActivity() {
 		updateRecordButton()
 		if (!pausedByStop || player.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return
 		pausedByStop = false
+		if (restoringChannel) return
 		if (!reclaimStream()) return say(getString(R.string.stream_busy), 1)
 		// The player was stopped while away: this open is a fresh start, not a recovery.
 		cushion.onFreshStart()
@@ -814,21 +800,32 @@ private class LiveSource(
 /**
  * Plays a live channel from its shared tap instead of opening a second provider connection:
  * opening joins the channel (a recording of the same channel joins the same one) and starts
- * at the live edge; closing leaves it, and the last reader closes the socket.
+ * at the live edge; decoder recovery retains the socket until the new reader opens.
+ * Leaving the screen releases every retained reader and closes an unshared socket.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private class TapDataSource(private val key: String, private val url: String, private val headers: Map<String, String>) : DataSource {
 	private var channel: LiveChannel? = null
-	private var input: InputStream? = null
+	private var retained: LiveChannel? = null
+	@Volatile private var input: InputStream? = null
 	private var uri: Uri = Uri.EMPTY
 
 	/** The shared channel this reader has, while it has it: watched for reconnecting. */
-	val joined: LiveChannel? get() = channel?.takeIf { !it.isClosed }
+	val joined: LiveChannel? get() = synchronized(this) { (channel ?: retained)?.takeIf { !it.isClosed } }
 
-	override fun open(dataSpec: DataSpec): Long {
+	@Synchronized fun retainForRecovery() {
+		val active = channel?.takeIf { !it.isClosed } ?: return
+		if (retained == null) retained = active.join()
+	}
+
+	@Synchronized override fun open(dataSpec: DataSpec): Long {
 		uri = dataSpec.uri
 		close()
-		val joining = LiveChannels.attachUrl(key, url, headers) ?: throw IOException("Another stream is in use")
+		val held = retained
+		retained = null
+		if (held?.isClosed == true) LiveChannels.leave(held)
+		val joining = held?.takeIf { !it.isClosed } ?: LiveChannels.attachUrl(key, url, headers)
+			?: throw IOException("Another stream is in use")
 		channel = joining
 		input = joining.reader()
 		// A live stream has no length, and nothing before the live edge is worth having.
@@ -839,11 +836,17 @@ private class TapDataSource(private val key: String, private val url: String, pr
 
 	override fun getUri(): Uri = uri
 
-	override fun close() {
+	@Synchronized override fun close() {
 		runCatching { input?.close() }
 		input = null
 		channel?.let { LiveChannels.leave(it) }
 		channel = null
+	}
+
+	@Synchronized fun release() {
+		close()
+		retained?.let { LiveChannels.leave(it) }
+		retained = null
 	}
 
 	override fun addTransferListener(transferListener: TransferListener) = Unit

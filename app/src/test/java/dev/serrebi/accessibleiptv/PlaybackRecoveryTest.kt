@@ -108,12 +108,16 @@ class PlaybackRecoveryTest {
 		assertTrue("a pending retry must not play after leaving the app", calls.isEmpty())
 	}
 
-	@Test fun aBackwardsTimestampFollowedByStalledBufferingRecovers() = fixture { _, exo, calls ->
+	@Test fun aBackwardsTimestampUsesTheNoProgressWatchdog() = fixture { activity, exo, calls ->
 		assertEquals(Player.STATE_BUFFERING, exo.playbackState)
+		val listener = PlayerActivity::class.java.getDeclaredField("listener").apply { isAccessible = true }.get(activity) as Player.Listener
+		listener.onPlaybackStateChanged(Player.STATE_READY)
 		exo.analyticsCollector.onAudioSinkError(AudioSink.UnexpectedDiscontinuityException(0, 900_000_000))
 		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
 		assertTrue("give Media3 a chance to recover the timestamp itself", calls.isEmpty())
 		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(4))
+		assertTrue("a timestamp warning must not start a competing five-second recovery", calls.isEmpty())
+		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
 		assertEquals(listOf("stop", "setMediaItem", "prepare", "play"), calls)
 	}
 

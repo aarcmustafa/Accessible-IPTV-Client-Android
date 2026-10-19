@@ -131,6 +131,31 @@ class AuditTest {
 		assertTrue("new channels were not in the imported guide", app.guideStale())
 	}
 
+	@Test fun restoredPlayerWaitsForItsChannelBeforeOpeningAConnection() {
+		val src = Source("s", Source.TYPE_M3U, "List", "${server.url}/list")
+		app.prefs.sources = listOf(src)
+		val playlist = "#EXTM3U\n#EXTINF:-1,News\n${server.url}/live.ts"
+		server.text("/list", playlist)
+		runBlocking { app.load(App.LIVE, true) }
+		val ch = app.channels.single()
+		@Suppress("UNCHECKED_CAST")
+		(App::class.java.getDeclaredField("lists").apply { isAccessible = true }.get(app) as MutableMap<String, *>).clear()
+		java.io.File(app.filesDir, "channels_s_live.json").delete()
+		val release = CountDownLatch(1)
+		server.on("/list") { ex -> release.await(5, TimeUnit.SECONDS); ex.reply(200, playlist) }
+		val intent = android.content.Intent(app, PlayerActivity::class.java).putExtra("key", ch.key)
+			.putExtra("title", ch.name).putExtra("url", ch.url)
+		val controller = org.robolectric.Robolectric.buildActivity(PlayerActivity::class.java, intent).setup()
+		try {
+			controller.get().findViewById<android.widget.Button>(R.id.btnPause).performClick()
+			org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(31))
+			val exo = PlayerActivity::class.java.getDeclaredField("exo").apply { isAccessible = true }
+				.get(controller.get()) as androidx.media3.exoplayer.ExoPlayer
+			assertEquals("wait for live routing instead of opening then replacing a direct connection",
+				androidx.media3.common.Player.STATE_IDLE, exo.playbackState)
+		} finally { release.countDown(); controller.pause().stop().destroy() }
+	}
+
 	@Test fun restoredPlayerReloadsItsLiveChannel() {
 		val src = Source("s", Source.TYPE_M3U, "List", "${server.url}/list")
 		app.prefs.sources = listOf(src)

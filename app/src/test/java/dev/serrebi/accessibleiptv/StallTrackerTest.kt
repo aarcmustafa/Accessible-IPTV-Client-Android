@@ -50,6 +50,31 @@ class StallTrackerTest {
 		assertEquals(StallTracker.Verdict.RESTART_GROWN, t.tick(buffering = true, frozenMs = 0))
 	}
 
+	@Test fun fillingTheRecoveryCushionDoesNotRestartEveryTenSeconds() {
+		val t = tracker()
+		t.onPlaying()
+		t.onPrepared()
+		for (second in 1L..30L) {
+			at(second)
+			assertEquals(StallTracker.Verdict.NONE, t.tick(buffering = true, frozenMs = 0, bufferedMs = second * 1000))
+		}
+		at(39)
+		assertEquals(StallTracker.Verdict.NONE, t.tick(buffering = true, frozenMs = 0, bufferedMs = 30_000))
+		at(40)
+		assertEquals(StallTracker.Verdict.RESTART_GROWN, t.tick(buffering = true, frozenMs = 0, bufferedMs = 30_000))
+	}
+
+	@Test fun initialBufferProgressPreventsTheNoMediaRestart() {
+		val t = tracker()
+		for (second in 1L..29L) {
+			at(second)
+			assertEquals(StallTracker.Verdict.NONE, t.tick(buffering = true, frozenMs = 0, bufferedMs = second * 1000))
+		}
+		at(30)
+		assertEquals("the first-play deadline still applies", StallTracker.Verdict.GIVE_UP,
+			t.tick(buffering = true, frozenMs = 0, bufferedMs = 30_000))
+	}
+
 	@Test fun shortBlipsDoNotCountButFourLongOnesAreChoppy() {
 		val t = tracker()
 		at(1)
@@ -69,7 +94,7 @@ class StallTrackerTest {
 			at(start + 2)
 			verdict = t.tick(buffering = false, frozenMs = 0)
 		}
-		assertEquals(StallTracker.Verdict.RESTART_GROWN, verdict)
+		assertEquals("choppy playback that resumed needs a cushion, not a disconnect", StallTracker.Verdict.GROW, verdict)
 		// The 20 s cooldown holds the next choppy verdict back.
 		for (start in 36L..48L step 4) {
 			at(start)
