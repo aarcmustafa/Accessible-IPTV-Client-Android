@@ -65,6 +65,52 @@ class LiveChannelTest {
 		assertArrayEquals("the second reader is not behind the first", bytes(1000), player.readN(1000))
 	}
 
+	@Test fun firstChannelReaderKeepsTheInitialStreamHeaders() {
+		val sent = CountDownLatch(1)
+		val hold = CountDownLatch(1)
+		val channel = LiveChannels.attach("startup") {
+			object : InputStream() {
+				var first = true
+				override fun read() = error("bulk reads only")
+				override fun read(b: ByteArray, off: Int, len: Int): Int {
+					if (!first) { sent.countDown(); hold.await(); return -1 }
+					first = false
+					bytes(32).copyInto(b, off)
+					return 32
+				}
+			}
+		}!!
+		try {
+			assertTrue(sent.await(3, TimeUnit.SECONDS))
+			assertEquals("headers sent before the reader joins must remain readable", 32, channel.reader().available())
+			assertEquals("later consumers join the live edge", 0, channel.reader().available())
+		} finally { hold.countDown(); LiveChannels.leave(channel) }
+	}
+
+	@Test fun closingOneReaderWakesItsReadWithoutStoppingTheRecording() {
+		val tap = Tap(64)
+		val player = tap.reader()
+		val recorder = tap.reader()
+		val reading = CountDownLatch(1)
+		val ended = CountDownLatch(1)
+		val result = java.util.concurrent.atomic.AtomicInteger(-2)
+		val thread = Thread {
+			reading.countDown()
+			result.set(player.read())
+			ended.countDown()
+		}
+		thread.start()
+		try {
+			assertTrue(reading.await(3, TimeUnit.SECONDS))
+			player.close()
+			assertTrue("closing the player must release its blocked loader", ended.await(1, TimeUnit.SECONDS))
+			assertEquals(-1, result.get())
+			tap.write(bytes(8), 0, 8)
+			assertArrayEquals(bytes(8), recorder.readN(8))
+			assertEquals(-1, player.read())
+		} finally { tap.close(); thread.join(3_000) }
+	}
+
 	@Test fun aBlockingReadReturnsWhenBytesArriveAndTheEndWhenClosed() {
 		val tap = Tap(64)
 		val reader = tap.reader()
@@ -74,6 +120,28 @@ class LiveChannelTest {
 		writer.join()
 		tap.close()
 		assertEquals(-1, reader.read())
+	}
+
+	@Test fun leavingTheLastConsumerClosesABlockedProviderStream() {
+		val reading = CountDownLatch(1)
+		val closed = CountDownLatch(1)
+		val channel = LiveChannels.attach("blocked") {
+			object : InputStream() {
+				override fun read(): Int {
+					reading.countDown()
+					while (closed.count > 0) {
+						try { closed.await() } catch (_: InterruptedException) { }
+					}
+					return -1
+				}
+				override fun close() { closed.countDown() }
+			}
+		}!!
+		try {
+			assertTrue(reading.await(3, TimeUnit.SECONDS))
+			LiveChannels.leave(channel)
+			assertTrue("thread interruption alone does not close a network read", closed.await(1, TimeUnit.SECONDS))
+		} finally { closed.countDown() }
 	}
 
 	@Test fun attachJoinsTheRunningChannelInsteadOfOpeningASecondSocket() {
@@ -142,6 +210,18 @@ class LiveChannelTest {
 	@Test fun aDownloadHoldingTheStreamBlocksALiveChannel() {
 		assertTrue(Streams.acquire(Streams.downloadId("http://h/movie.mp4")))
 		assertNull("a download needs the stream to itself", LiveChannels.attach("src:1") { InputStream.nullInputStream() })
+	}
+
+	@Test fun leavingAnExpiredChannelCannotReleaseItsReplacement() {
+		val first = LiveChannels.attach("same") { InputStream.nullInputStream() }!!
+		first.closeNow()
+		LiveChannels.closed(first)
+		val replacement = LiveChannels.attach("same") { InputStream.nullInputStream() }!!
+		try {
+			LiveChannels.leave(first)
+			assertEquals("an old reader cannot free the replacement’s gate", Streams.liveId("same"), Streams.current())
+			assertFalse(Streams.free(Streams.urlId("other")))
+		} finally { LiveChannels.leave(replacement) }
 	}
 
 	@Test fun aLiveChannelBlocksEveryOtherStream() {

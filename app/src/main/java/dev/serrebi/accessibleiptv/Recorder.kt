@@ -322,7 +322,7 @@ class RecordService : Service() {
 		val hls = isHlsUrl(plain)
 		// A live TS channel reads the tap, which watching may already have opened; everything
 		// else — an HLS stream, a download — takes the one provider stream for itself.
-		val shared = if (!download && !hls) LiveChannels.attach(key) { Net.open(plain, headers) } else null
+		val shared = if (!download && !hls) LiveChannels.attachUrl(key, plain, headers) else null
 		val gate = if (download) Streams.downloadId(plain) else if (hls) Streams.liveId(key) else null
 		if ((shared == null && gate == null) || (gate != null && !Streams.acquire(gate))) {
 			// Another stream is in use: a missed recording must say so, never run silently.

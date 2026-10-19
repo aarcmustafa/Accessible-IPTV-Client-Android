@@ -109,7 +109,7 @@ class ScreenTest {
 		val rv = a.findViewById<RecyclerView>(R.id.channels)
 		waitUntil { rv.adapter!!.itemCount == 2 && rv.findViewHolderForAdapterPosition(0) != null }
 		assertEquals("BBC One", rv.findViewHolderForAdapterPosition(0)!!.itemView.contentDescription.toString())
-		assertTrue(a.findViewById<TextView>(R.id.status).text.contains("2"))
+		waitUntil { a.findViewById<TextView>(R.id.status).text.contains("2") }
 		val groups = a.findViewById<RecyclerView>(R.id.groups)
 		waitUntil { groups.findViewHolderForAdapterPosition(0) != null }
 		// "All, 2, selected": the reader says which group is showing.

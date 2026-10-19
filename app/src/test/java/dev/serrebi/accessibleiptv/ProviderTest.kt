@@ -69,6 +69,53 @@ class ProviderTest {
 		assertEquals("http://r/", server.headers.last()["referer"])
 	}
 
+	@Test fun cancelledLiveCallCannotOpenAnotherProviderConnection() {
+		val call = Net.Call("${server.url}/cancelled", emptyMap())
+		call.close()
+		org.junit.Assert.assertThrows(IOException::class.java) { call.open() }
+		assertTrue(server.requests.isEmpty())
+	}
+
+	@Test fun cancellingLiveCallReleasesARequestWaitingForItsFirstByte() = cancelWaitingLiveCall(headersFirst = true)
+
+	@Test fun cancellingLiveCallReleasesARequestWaitingForHeaders() = cancelWaitingLiveCall(headersFirst = false)
+
+	private fun cancelWaitingLiveCall(headersFirst: Boolean) {
+		val headers = java.util.concurrent.CountDownLatch(1)
+		val hold = java.util.concurrent.CountDownLatch(1)
+		val ended = java.util.concurrent.CountDownLatch(1)
+		val cancelled = java.util.concurrent.CountDownLatch(1)
+		server.on("/slow") { ex ->
+			if (headersFirst) ex.sendResponseHeaders(200, 0)
+			headers.countDown()
+			hold.await(5, java.util.concurrent.TimeUnit.SECONDS)
+			if (!headersFirst) ex.sendResponseHeaders(200, 0)
+		}
+		val call = Net.Call("${server.url}/slow", emptyMap())
+		val worker = Thread { try { runCatching { call.open().close() } } finally { ended.countDown() } }
+		worker.start()
+		try {
+			assertTrue(headers.await(3, java.util.concurrent.TimeUnit.SECONDS))
+			Thread { try { call.close() } finally { cancelled.countDown() } }.start()
+			assertTrue("cancellation must not wait for the provider", cancelled.await(2, java.util.concurrent.TimeUnit.SECONDS))
+			assertTrue("the old request must end", ended.await(2, java.util.concurrent.TimeUnit.SECONDS))
+		} finally { hold.countDown(); worker.join(3_000) }
+	}
+
+	@Test fun liveCallsKeepRedirectsHeadersGzipAndHttpErrors() {
+		server.on("/live") { it.redirect("/gzip") }
+		server.bytes("/gzip", gzip("transport stream"))
+		Net.Call("${server.url}/live", mapOf("User-Agent" to "Kodi/20", "Referer" to "http://r/")).use { call ->
+			assertEquals("transport stream", call.open().use { it.readBytes().toString(Charsets.UTF_8) })
+		}
+		assertEquals("Kodi/20", server.headers.last()["user-agent"])
+		assertEquals("http://r/", server.headers.last()["referer"])
+		Net.Call("${server.url}/missing", emptyMap()).use { call ->
+			val error = org.junit.Assert.assertThrows(IOException::class.java) { call.open() }
+			assertEquals("Server answered 404", error.message)
+		}
+	}
+
 	// ---- Xtream ----
 
 	private fun xtreamServer() {

@@ -68,7 +68,7 @@ class Tap(private val capacity: Int) {
 	}
 
 	/** A reader starting at the live edge, which is where a live stream must start. */
-	fun reader(): InputStream = lock.withLock { Reader(end) }
+	fun reader(retained: Boolean = false): InputStream = lock.withLock { Reader(if (retained) base else end) }
 
 	/** Drops everything unread: a reconnected stream is a fresh live edge, the old bytes a time jump. */
 	fun clear() = lock.withLock { base = end; ready.signalAll() }
@@ -83,6 +83,10 @@ class Tap(private val capacity: Int) {
 	}
 
 	private inner class Reader(private var pos: Long) : InputStream() {
+		private var closed = false
+
+		override fun close() = lock.withLock { closed = true; ready.signalAll() }
+
 		override fun read(): Int {
 			val one = ByteArray(1)
 			return if (read(one, 0, 1) <= 0) -1 else one[0].toInt() and 0xFF
@@ -93,6 +97,7 @@ class Tap(private val capacity: Int) {
 			try {
 				lock.withLock {
 					while (true) {
+						if (closed) return -1
 						if (pos < base) pos = base
 						val available = end - pos
 						if (available > 0) {
@@ -116,7 +121,7 @@ class Tap(private val capacity: Int) {
 			}
 		}
 
-		override fun available() = lock.withLock { (end - maxOf(pos, base)).coerceAtLeast(0).toInt() }
+		override fun available() = lock.withLock { if (closed) 0 else (end - maxOf(pos, base)).coerceAtLeast(0).toInt() }
 	}
 }
 
@@ -126,10 +131,12 @@ class Tap(private val capacity: Int) {
  * stream. The socket lives here, not in the player: leaving the player does not end a
  * recording, and pressing Record does not open a second connection.
  */
-class LiveChannel internal constructor(val key: String, private val open: () -> InputStream) {
+class LiveChannel internal constructor(val key: String, private val cancel: () -> Unit, private val open: () -> InputStream) {
 	private val tap = Tap(TAP_BYTES)
 	private var consumers = 0
+	private var firstReader = true
 	private var thread: Thread? = null
+	@Volatile private var input: InputStream? = null
 
 	@Volatile var isClosed = false
 		private set
@@ -141,7 +148,10 @@ class LiveChannel internal constructor(val key: String, private val open: () -> 
 	/** One more consumer; pair it with [LiveChannels.leave]. */
 	internal fun join(): LiveChannel = synchronized(this) { consumers++; this }
 
-	fun reader(): InputStream = tap.reader()
+	fun reader(): InputStream = synchronized(this) {
+		// The pump can deliver PAT/PMT before the first consumer gets its reader.
+		tap.reader(retained = firstReader).also { firstReader = false }
+	}
 
 	/** One consumer leaves: true when it was the last one, which closes the socket. */
 	internal fun leave(): Boolean = synchronized(this) {
@@ -157,6 +167,8 @@ class LiveChannel internal constructor(val key: String, private val open: () -> 
 		isClosed = true
 		tap.close()
 		thread?.interrupt()
+		runCatching { cancel() }
+		runCatching { input?.close() }
 	}
 
 	internal fun start() {
@@ -181,8 +193,10 @@ class LiveChannel internal constructor(val key: String, private val open: () -> 
 			try {
 				if (played) tap.clear()
 				input = open()
+				this.input = input
+				if (isClosed) return
 				reconnecting = false
-				while (true) {
+				while (!isClosed) {
 					val n = input.read(buf)
 					if (n < 0) break
 					tap.write(buf, 0, n)
@@ -192,6 +206,7 @@ class LiveChannel internal constructor(val key: String, private val open: () -> 
 				android.util.Log.w("AiptvLive", "live $key: ${e.message}")
 			} finally {
 				runCatching { input?.close() }
+				this.input = null
 			}
 			if (isClosed) return
 			if (!played && ++tries > FIRST_TRIES) return giveUp()
@@ -226,20 +241,27 @@ object LiveChannels {
 	private var current: LiveChannel? = null
 
 	/** A place in [key]'s stream: the running channel, or a new one. Null = another stream is in use. */
-	fun attach(key: String, open: () -> InputStream): LiveChannel? = synchronized(lock) {
+	fun attach(key: String, cancel: () -> Unit = {}, open: () -> InputStream): LiveChannel? = synchronized(lock) {
 		current?.let { return if (it.key == key && !it.isClosed) it.join() else null }
 		if (!Streams.acquire(Streams.liveId(key))) return null
-		val ch = LiveChannel(key, open)
+		val ch = LiveChannel(key, cancel, open)
 		current = ch
 		ch.start()
 		ch.join()
 	}
 
+	fun attachUrl(key: String, url: String, headers: Map<String, String>): LiveChannel? {
+		val call = Net.Call(url, headers)
+		return attach(key, call::close, call::open)
+	}
+
 	/** One consumer leaves [ch]; the last one closes the socket and frees the stream. */
 	fun leave(ch: LiveChannel) = synchronized(lock) {
 		if (!ch.leave()) return
-		if (current === ch) current = null
-		Streams.release(Streams.liveId(ch.key))
+		if (current === ch) {
+			current = null
+			Streams.release(Streams.liveId(ch.key))
+		}
 	}
 
 	/** The running channel for [key], when watching and recording already share it. */

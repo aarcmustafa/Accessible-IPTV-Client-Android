@@ -14,8 +14,8 @@ android {
 		applicationId = "dev.serrebi.accessibleiptv"
 		minSdk = libs.versions.android.minSdk.get().toInt()
 		targetSdk = libs.versions.android.targetSdk.get().toInt()
-		versionCode = 22
-		versionName = "0.2.20"
+		versionCode = 23
+		versionName = "0.2.21"
 	}
 
 	buildFeatures {
@@ -56,6 +56,7 @@ dependencies {
 	implementation(libs.media3.ui)
 	// Casting: Media3 CastPlayer + the route chooser dialog (Google Play services at runtime).
 	implementation(libs.media3.cast)
+	implementation(libs.okhttp)
 	implementation(libs.androidx.mediarouter)
 	testImplementation(libs.junit)
 	testImplementation(libs.robolectric)

@@ -281,7 +281,7 @@ class PlayerActivity : AppCompatActivity() {
 		cushion = Cushion(app.prefs.bufferSeconds, app.prefs.maxBufferSeconds, dispatcharr = ch?.isDispatcharr == true)
 		// A live TS channel is read from its tap, so a recording of it shares this one socket;
 		// every other request (catch-up, HLS, a file) goes to the ordinary data source.
-		val tap = TapDataSource(tapKey(channelKey, plain)) { Net.open(plain, streamHeaders) }
+		val tap = TapDataSource(tapKey(channelKey, plain), plain, streamHeaders)
 		tapSource = tap
 		val base = DefaultDataSource.Factory(this, http)
 		val sources = DataSource.Factory { LiveSource(plain, { live && !hls }, tap) { base.createDataSource() } }
@@ -817,7 +817,7 @@ private class LiveSource(
  * at the live edge; closing leaves it, and the last reader closes the socket.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-private class TapDataSource(private val key: String, private val open: () -> InputStream) : DataSource {
+private class TapDataSource(private val key: String, private val url: String, private val headers: Map<String, String>) : DataSource {
 	private var channel: LiveChannel? = null
 	private var input: InputStream? = null
 	private var uri: Uri = Uri.EMPTY
@@ -828,7 +828,7 @@ private class TapDataSource(private val key: String, private val open: () -> Inp
 	override fun open(dataSpec: DataSpec): Long {
 		uri = dataSpec.uri
 		close()
-		val joining = LiveChannels.attach(key, open) ?: throw IOException("Another stream is in use")
+		val joining = LiveChannels.attachUrl(key, url, headers) ?: throw IOException("Another stream is in use")
 		channel = joining
 		input = joining.reader()
 		// A live stream has no length, and nothing before the live edge is worth having.

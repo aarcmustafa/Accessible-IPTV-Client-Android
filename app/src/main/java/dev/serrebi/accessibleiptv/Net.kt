@@ -10,6 +10,49 @@ import java.util.zip.GZIPInputStream
 object Net {
 	const val USER_AGENT = "AccessibleIPTV-Android/0.1"
 
+	private val liveClient = okhttp3.OkHttpClient.Builder()
+		.connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+		.readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+		// The shared channel owns retries, and the provider permits only one connection.
+		.retryOnConnectionFailure(false).fastFallback(false).build()
+
+	/** A live request whose cancellation also prevents a not-yet-executed call. */
+	class Call(private val url: String, private val headers: Map<String, String>) : AutoCloseable {
+		private var cancelled = false
+		private var call: okhttp3.Call? = null
+
+		fun open(): InputStream {
+			val request = okhttp3.Request.Builder().url(url).header("User-Agent", USER_AGENT)
+			headers.forEach { (k, v) -> request.header(k, v) }
+			val next = liveClient.newCall(request.build())
+			synchronized(this) {
+				if (cancelled) throw IOException("Stream closed")
+				call = next
+			}
+			val response = next.execute()
+			try {
+				if (!response.isSuccessful) throw IOException("Server answered ${response.code}")
+				return unwrap(response.body.byteStream())
+			} catch (e: Exception) {
+				response.close()
+				throw e
+			}
+		}
+
+		override fun close() {
+			val active = synchronized(this) { cancelled = true; call.also { call = null } }
+			active?.cancel()
+		}
+	}
+
+	private fun unwrap(raw: InputStream): InputStream {
+		val input = BufferedInputStream(raw, 64 * 1024)
+		input.mark(2)
+		val gz = input.read() == 0x1f && input.read() == 0x8b
+		input.reset()
+		return if (gz) BufferedInputStream(GZIPInputStream(input, 64 * 1024), 64 * 1024) else input
+	}
+
 	/** Opens [url] following redirects; gzip bodies are unwrapped by sniffing the magic bytes. */
 	fun open(url: String, headers: Map<String, String> = emptyMap(), onResponse: ((HttpURLConnection) -> Unit)? = null): InputStream {
 		var current = url
@@ -28,11 +71,7 @@ object Net {
 			}
 			if (code !in 200..299) { c.disconnect(); throw IOException("Server answered $code") }
 			onResponse?.invoke(c)
-			val input = BufferedInputStream(c.inputStream, 64 * 1024)
-			input.mark(2)
-			val gz = input.read() == 0x1f && input.read() == 0x8b
-			input.reset()
-			return if (gz) BufferedInputStream(GZIPInputStream(input, 64 * 1024), 64 * 1024) else input
+			return unwrap(c.inputStream)
 		}
 		throw IOException("Too many redirects")
 	}
