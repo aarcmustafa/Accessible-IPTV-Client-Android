@@ -456,6 +456,9 @@ class ScreenTest {
 		server.text("/arch.ts", "gone", status = 404)
 		val a = player("${server.url}/arch.ts", app.channels[0].key, catchup = true).setup().get()
 		val pause = a.findViewById<Button>(R.id.btnPause)
+		waitUntil { a.findViewById<TextView>(R.id.playerStatus).text.toString() == a.getString(R.string.reconnecting) }
+		// Catch-up now retries too; advance past the never-played deadline before checking Retry.
+		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(StallTracker.FIRST_PLAY_DEADLINE_MS + 1_000))
 		waitUntil(10_000) { pause.text.toString() == a.getString(R.string.retry) }
 	}
 
